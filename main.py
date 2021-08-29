@@ -6,7 +6,7 @@ import aiohttp
 import discord
 from discord.ext import commands
 
-from postgre import database
+from postgre import Database
 
 
 class Bot(commands.Bot):
@@ -58,7 +58,7 @@ class Bot(commands.Bot):
 
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
         self.loop = asyncio.get_event_loop()
-        self.pool = database(self.loop).pool
+        self.pool = Database(self.loop).pool
 
         self.loop.create_task(self.__ainit__())
 
@@ -180,7 +180,7 @@ class Bot(commands.Bot):
         a new message.
         """
         if message.guild and not message.author.bot:
-            if getattr(self, "cache"):
+            if getattr(self, "cache", None):
                 self.cache["member"].update(
                     {message.author.id: message.author}
                 )  # Pre-message intent local caching

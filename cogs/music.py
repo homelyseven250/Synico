@@ -14,14 +14,6 @@ class Music(commands.Cog):
         # self.bot.loop.create_task(self.__ainit__())
         self.voice_clients = {}
 
-    async def __ainit__(self):
-        """
-        |coro|
-
-        An asynchronous version of :method:`__init__`
-        to access coroutines.
-        """
-
     # @commands.command()
     async def join(self, context: commands.Context):
         in_voice = context.author.voice

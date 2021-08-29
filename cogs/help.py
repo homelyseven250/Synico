@@ -214,7 +214,7 @@ class Help(commands.Cog):
         Display current version of Python and d.py.
         """
         embed = context.bot.embed(
-            description=f"**Python Version: {sys.version[:6]} - {sys.version_info.releaselevel}\nDiscord.py Version: {discord.__version__[:6]} - {discord.version_info.releaselevel}**",
+            description=f"**Python Version: {sys.version[:6]} - {sys.version_info.releaselevel}\nDiscord.py Version: {discord.__version__} - {discord.version_info.releaselevel}**",
             color=0x2ECC71,
         )
         await context.send(embed=embed)
