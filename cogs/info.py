@@ -13,14 +13,6 @@ class Info(commands.Cog):
         self.bot = bot
         self.bot.loop.create_task(self.__ainit__())
 
-    async def __ainit__(self):
-        """
-        |coro|
-
-        An asynchronous version of :method:`__init__`
-        to access coroutines.
-        """
-
     @commands.command(name="avatar", aliases=["avi", "av"])
     async def _avatar(self, context: commands.Context, *, member: UserConverter = None):
         """

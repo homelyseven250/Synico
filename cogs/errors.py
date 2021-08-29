@@ -16,7 +16,6 @@ class Errors(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @classmethod
     async def format_error(self, context, error):
         """
         |coro|
@@ -33,7 +32,6 @@ class Errors(commands.Cog):
         An event that is fired when an exception
         occurs.
         """
-        print(bool(hasattr(context.command, "on_error")))
         if hasattr(context.command, "on_error"):
             return
 

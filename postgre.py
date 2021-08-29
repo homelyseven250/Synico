@@ -22,7 +22,7 @@ class postgresql(NamedTuple):
     }
 
 
-class database:
+class Database:
     def __init__(self, loop: AbstractEventLoop):
         self.loop = loop
         self.pool = self.loop.run_until_complete(self.create_asyncpg_pool())
