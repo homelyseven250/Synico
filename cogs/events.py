@@ -567,29 +567,34 @@ class Events(commands.Cog):
         """
         An event called whenever the client joins a guild.
         """
-        if not hasattr(self, "owner"):
-            self.owner: discord.User = await self.bot.fetch_user(220418804176388097)
+        if not hasattr(self, "owners"):
+            self.owners: discord.User = [
+                await self.bot.fetch_user(owner) for owner in self.bot.owner_ids
+            ]
 
-        if self.owner:
+        if self.owners:
             time = discord.utils.format_dt(discord.utils.utcnow())
-            await self.owner.send(
-                f"{time}\n Guilds: {len(self.bot.guilds)}\n\n\
-                {guild.me} has joined {guild} with a member count of {guild.member_count}."
-            )
+            for owner in self.owners:
+                await owner.send(
+                    f"{time}\n Guilds: {len(self.bot.guilds)}\n\n{guild.me} has joined {guild} with a member count of {guild.member_count}."
+                )
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
         """
         An event called whenever the client leaves or is removed from a guild.
         """
-        if not hasattr(self, "owner"):
-            self.owner: discord.User = await self.bot.fetch_user(220418804176388097)
+        if not hasattr(self, "owners"):
+            self.owners: discord.User = [
+                await self.bot.fetch_user(owner) for owner in self.bot.owner_ids
+            ]
 
-        if self.owner:
+        if self.owners:
             time = discord.utils.format_dt(discord.utils.utcnow())
-            await self.owner.send(
-                f"{time}\n Guilds: {len(self.bot.guilds)}\n\n{guild.me} left or was removed from {guild}."
-            )
+            for owner in self.owners:
+                await owner.send(
+                    f"{time}\n Guilds: {len(self.bot.guilds)}\n\n{guild.me} left or was removed from {guild}."
+                )
 
     @commands.Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
@@ -848,7 +853,6 @@ class Events(commands.Cog):
 
                 self.embeds[member.guild.id] = {"webhook": webhook, "embeds": [embed]}
 
-    # IMPLEMENT STAGE EVENTS HERE
     @commands.Cog.listener()
     async def on_stage_instance_create(self, stage: discord.StageInstance):
         """
