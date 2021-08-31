@@ -219,6 +219,17 @@ class Help(commands.Cog):
         )
         await context.send(embed=embed)
 
+    @commands.command()
+    async def support(self, context: commands.Context):
+        """
+        Invite link to the Synico support server.
+        """
+        embed = context.bot.embed(
+            description=f"[Support Server](https://discord.gg/Xh9Whbrqbj)",
+            color=0x2ECC71,
+        )
+        await context.reply(embed=embed)
+
 
 def setup(bot):
     bot.add_cog(Help(bot))
