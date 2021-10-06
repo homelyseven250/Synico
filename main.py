@@ -14,11 +14,9 @@ class Bot(commands.Bot):
     A :class:`Bot` class that
     inherits from :class:`Client`.
     -----------------------------
-    Creates a Bot instance when
-    the class is initialized.
 
     Attributes
-    ----------
+
     pool: :class:`asyncpg.pool.Pool`
         A lingering connection pool
         established when accessing
@@ -45,14 +43,22 @@ class Bot(commands.Bot):
         close connections.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+
+        intents = discord.Intents(
+            guilds=True,
+            emojis_and_stickers=True,
+            invites=True,
+            voice_states=True,
+            guild_messages=True,
+            guild_reactions=True,
+        )
 
         super().__init__(
             command_prefix=self.get_prefix,
             case_insensitive=True,
-            help_command=None,
-            intents=discord.Intents.default(),
-            owner_ids=[220418804176388097, 672498629864325140],
+            intents=intents,
+            owner_id=220418804176388097,
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
@@ -62,7 +68,7 @@ class Bot(commands.Bot):
 
         self.loop.create_task(self.__ainit__())
 
-    async def __ainit__(self):
+    async def __ainit__(self) -> None:
         """
         |coro|
 
@@ -74,9 +80,7 @@ class Bot(commands.Bot):
         await self.assign_attributes()
         await self.create_caches()
 
-        self.all_extensions()
-
-    def run(self):
+    def run(self) -> None:
         """
         A method of :class:`discord.Client` that is called
         to initiate the websocket connection and
@@ -84,9 +88,10 @@ class Bot(commands.Bot):
         """
         self.config = ConfigParser()
         self.config.read("config.ini")
+        self.extensions()
         super().run(self.config["SECRET"]["token"], reconnect=True)
 
-    async def close(self):
+    async def close(self) -> None:
         """
         |coro|
 
@@ -98,7 +103,7 @@ class Bot(commands.Bot):
         await asyncio.wait_for(self.pool.close(), 30)
         await super().close()
 
-    def all_extensions(self):
+    def extensions(self) -> None:
         """
         This will iterate through the files present in
         the folder named 'cogs' and register them as extensions.
@@ -113,7 +118,7 @@ class Bot(commands.Bot):
         if bool(self.config["SETTINGS"]["debug"]):
             self.debugging()
 
-    def debugging(self):
+    def debugging(self) -> None:
         """
         A function to optionally load
         the Jishaku extension for debugging purposes.
@@ -124,7 +129,7 @@ class Bot(commands.Bot):
         os.environ["JISHAKU_NO_DM_TRACEBACK"] = "True"
         os.environ["JISHAKU_HIDE"] = "True"
 
-    async def assign_attributes(self):
+    async def assign_attributes(self) -> None:
         """
         |coro|
 
@@ -134,8 +139,9 @@ class Bot(commands.Bot):
         self.uptime = discord.utils.utcnow()
         self.embed = discord.Embed
         self.cs = aiohttp.ClientSession()
+        self.avatar = self.user.avatar.url
 
-    async def on_ready(self):
+    async def on_ready(self) -> None:
         """
         An event fired
         once websocket connection is opened
@@ -143,7 +149,7 @@ class Bot(commands.Bot):
         """
         print(self.user, "is now online.", round(self.latency * 1000), "ms.")
 
-    async def on_disconnect(self):
+    async def on_disconnect(self) -> None:
         """
         An event fired when
         the websocket connection is interrupted
@@ -151,7 +157,7 @@ class Bot(commands.Bot):
         """
         print(self.user, "has disconnected.")
 
-    async def on_resumed(self):
+    async def on_resumed(self) -> None:
         """
         An event fired once the websocket
         connection is reestablished.
@@ -159,7 +165,7 @@ class Bot(commands.Bot):
         self.uptime = discord.utils.utcnow()
         print(self.user, "has reconnected.", round(self.latency * 1000), "ms.")
 
-    async def get_prefix(self, message: discord.Message):
+    async def get_prefix(self, message: discord.Message) -> None:
         """
         |coro|
 
@@ -170,7 +176,7 @@ class Bot(commands.Bot):
             if not self.prefix.get(message.guild.id, None):
                 await self.add_prefix(message.guild.id)
 
-            prefix = self.prefix.get(message.guild.id)
+            prefix: str = self.prefix.get(message.guild.id)
             return commands.when_mentioned_or(prefix)(self, message)
 
     async def on_message(self, message: discord.Message):
@@ -210,10 +216,9 @@ class Bot(commands.Bot):
         the prefix assign to the :class:`discord.Guild`.
         """
         await self.pool.execute(
-            "INSERT INTO guild VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO NOTHING",
+            "INSERT INTO guilds (guild, prefix) VALUES ($1, $2) ON CONFLICT (guild) DO NOTHING",
             guild_id,
             self.user.mention,
-            False,
         )
 
         self.prefix.update({guild_id: self.user.mention})
@@ -227,19 +232,19 @@ class Bot(commands.Bot):
         will assign instance attributes that specifically build
         the local cache after accessing the database.
         """
-        self.cache = {"member": {}}
+        self.cache = {"member": {}, "user": {}}
 
-        self.prefix = {
+        self.prefix: dict[int, str] = {
             guild: prefix
             for guild, prefix in await self.pool.fetch(
-                "SELECT guild_id, prefix FROM guild"
+                "SELECT guild, prefix FROM guilds"
             )
         }
 
-        self.admins = {
+        self.admins: dict[int, dict[str, int]] = {
             guild: {"admin": admin, "mod": mod}
             for guild, admin, mod in await self.pool.fetch(
-                "SELECT guild_id, admin, mod FROM guild"
+                "SELECT guild, admin, mod FROM guilds"
             )
         }
 

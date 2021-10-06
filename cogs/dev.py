@@ -1,8 +1,9 @@
 import difflib
+from typing import Union
 
 import discord
 import sphobjinv as sphinx
-from discord.ext import commands
+from discord.ext import commands, menus
 from utils import SourceReader
 
 
@@ -17,18 +18,31 @@ class Developer(commands.Cog):
 
     @commands.command()
     @commands.is_owner()
-    async def source(self, context, *, object: SourceReader):
+    async def source(
+        self,
+        context: commands.Context,
+        *,
+        object: SourceReader,
+    ) -> None:
         """
         Display source code of a command or file.
         """
-        await object.start(context)
+        menu = menus.MenuPages(object, delete_message_after=True)
+        await menu.start(context)
 
     @commands.command()
     @commands.is_owner()
-    async def reload(self, context, *extensions):
+    async def reload(
+        self,
+        context: commands.Context,
+        *,
+        extensions: tuple[str],
+    ) -> None:
         """
         Reloads selected modules.
         """
+        await context.send(extensions)
+        return
         reloaded = []
         not_reloaded = []
         if extensions[0] == "~":
@@ -47,14 +61,14 @@ class Developer(commands.Cog):
                 except Exception as error:
                     not_reloaded.append(f"⚠️ | {extension}: {error}")
 
-        embed = context.bot.embed(
+        embed: discord.Embed = context.bot.embed(
             description="\n".join(reloaded) + "\n".join(not_reloaded), color=0x006CCB
         )
         await context.send(embed=embed)
 
     @commands.command()
     @commands.is_owner()
-    async def load(self, context, *extensions):
+    async def load(self, context: commands.Context, *, extensions: tuple[str]) -> None:
         """
         Loads selected modules.
         """
@@ -76,14 +90,16 @@ class Developer(commands.Cog):
                 except Exception as error:
                     not_loaded.append(f"⚠️ | {extension}: {error}")
 
-        embed = context.bot.embed(
+        embed: discord.Embed = context.bot.embed(
             description="\n".join(loaded) + "\n".join(not_loaded), color=0x006CCB
         )
         await context.send(embed=embed)
 
     @commands.command()
     @commands.is_owner()
-    async def unload(self, context, *extensions):
+    async def unload(
+        self, context: commands.Context, *, extensions: tuple[str]
+    ) -> None:
         """
         Unloads selected modules.
         """
@@ -105,14 +121,14 @@ class Developer(commands.Cog):
                 except Exception as error:
                     not_unloaded.append(f"⚠️ | {extension}: {error}")
 
-        embed = context.bot.embed(
+        embed: discord.Embed = context.bot.embed(
             description="\n".join(unloaded) + "\n".join(not_unloaded), color=0x006CCB
         )
         await context.send(embed=embed)
 
     @commands.command()
     @commands.is_owner()
-    async def shutdown(self, context: commands.Context):
+    async def shutdown(self, context: commands.Context) -> None:
         """
         Shuts down bot.
         """
@@ -122,7 +138,7 @@ class Developer(commands.Cog):
         )
         await context.bot.close()
 
-    def rtfm_option(self, search: str):
+    def rtfm_option(self, search: str) -> tuple[str, int]:
         """
         This method is called to access
         a dictionary to determine what type of search
@@ -143,7 +159,9 @@ class Developer(commands.Cog):
 
         return options["latest"], 0
 
-    def rtfm_matches(self, search: str):
+    def rtfm_matches(
+        self, search: str
+    ) -> Union[tuple[dict[str, str], int], tuple[dict, int]]:
         """
         This method handles the `.inv` file to search
         for a similar search result and return
@@ -175,14 +193,14 @@ class Developer(commands.Cog):
         return {}, 0
 
     @commands.command()
-    async def rtfm(self, context: commands.Context, *, query: str):
+    async def rtfm(self, context: commands.Context, *, query: str) -> None:
         """
         Make a quick-search through the discord.py or python
         documentation.
         """
         results, splice = self.rtfm_matches(query)
 
-        embed = context.bot.embed(
+        embed: discord.Embed = context.bot.embed(
             title=f'({len(results)}) Results for "{query[splice:]}'[:255] + '"',
             description="",
             color=0x2ECC71,

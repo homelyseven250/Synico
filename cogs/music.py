@@ -9,13 +9,13 @@ youtube_url = re.compile(
 
 
 class Music(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot) -> None:
         self.bot = bot
         # self.bot.loop.create_task(self.__ainit__())
         self.voice_clients = {}
 
     # @commands.command()
-    async def join(self, context: commands.Context):
+    async def join(self, context: commands.Context) -> None:
         in_voice = context.author.voice
         if in_voice:
             channel = in_voice.channel
@@ -24,7 +24,7 @@ class Music(commands.Cog):
             self.voice_clients[context.guild.id] = voice_client
 
     # @commands.command()
-    async def leave(self, context: commands.Context):
+    async def leave(self, context: commands.Context) -> None:
         voice_client = self.voice_clients.get(context.guild.id)
         if voice_client:
             await voice_client.disconnect()

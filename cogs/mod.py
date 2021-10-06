@@ -3,7 +3,14 @@ from typing import Optional
 
 import discord
 from discord.ext import commands, tasks
-from utils import Mutes, UserConverter, Warnings, is_admin, is_mod, start_menu
+from utils import (
+    Mutes,
+    UserConverter,
+    Warnings,
+    is_admin,
+    is_mod,
+    start_menu,
+)
 
 
 class Moderation(commands.Cog):
@@ -12,11 +19,11 @@ class Moderation(commands.Cog):
     and server owners to assist with maintenance.
     """
 
-    def __init__(self, bot):
+    def __init__(self, bot) -> None:
         self.bot = bot
         self.bot.loop.create_task(self.__ainit__())
 
-    async def __ainit__(self):
+    async def __ainit__(self) -> None:
         """
         |coro|
 
@@ -26,20 +33,20 @@ class Moderation(commands.Cog):
         self.mute_role = {
             guild: role
             for guild, role in await self.bot.pool.fetch(
-                "SELECT guild_id, muterole FROM guild"
+                "SELECT guild, mute FROM guilds"
             )
         }
 
         self.muted = {
             guild: {member: duration}
             for guild, member, duration in await self.bot.pool.fetch(
-                "SELECT guild_id, users, finishes FROM mutes"
+                "SELECT guild, user, ends FROM mutes"
             )
         }
 
         await self.check_mutes.start()
 
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         """
         This method is called before the extension is unloaded
         to allow for the running task loop to gracefully
@@ -49,7 +56,7 @@ class Moderation(commands.Cog):
         return super().cog_unload()
 
     @tasks.loop(seconds=10, reconnect=True)
-    async def check_mutes(self):
+    async def check_mutes(self) -> None:
         """
         |coro|
 
@@ -73,7 +80,7 @@ class Moderation(commands.Cog):
                     ) or await guild.fetch_member(key)
 
                     await self.bot.pool.execute(
-                        "DELETE FROM mutes WHERE guild_id = $1 AND users = $2",
+                        "DELETE FROM mutes WHERE guild = $1 AND user = $2",
                         guild.id,
                         key,
                     )
@@ -83,14 +90,14 @@ class Moderation(commands.Cog):
                     if member and role:
                         try:
                             await member.remove_roles(role)
-                        except discord.Forbidden:
+                        except (discord.Forbidden, discord.HTTPException):
                             pass
 
     @commands.command()
     @is_admin()
     async def ban(
         self, context: commands.Context, member: UserConverter, *, reason: str = None
-    ):
+    ) -> None:
         """
         Allows admins/owners to ban a user from a guild.
         """
@@ -101,7 +108,7 @@ class Moderation(commands.Cog):
     @is_admin()
     async def unban(
         self, context: commands.Context, member: UserConverter, *, reason: str = None
-    ):
+    ) -> None:
         """
         Allows admins/owners to unban a user from a guild.
         """
@@ -112,7 +119,7 @@ class Moderation(commands.Cog):
     @is_mod()
     async def kick(
         self, context: commands.Context, member: UserConverter, *, reason: str = None
-    ):
+    ) -> None:
         """
         Allows moderators/admins/owners to kick a user from a guild.
         """
@@ -123,17 +130,17 @@ class Moderation(commands.Cog):
     @is_mod()
     async def clear(
         self,
-        context,
+        context: commands.Context,
         channel: Optional[discord.TextChannel] = None,
         member: Optional[discord.Member] = None,
         amount: int = 1,
-    ):
+    ) -> None:
         """
         Allows moderators/admins/owners to remove up to 1000
         channel messages.
         """
         amount = amount if amount <= 1000 else 1000
-        channel = channel or context.channel
+        channel: discord.TextChannel = channel or context.channel
 
         def check(message: discord.Message):
             return message.author.id == member.id
@@ -145,12 +152,12 @@ class Moderation(commands.Cog):
     @is_mod()
     async def lock(
         self, context: commands.Context, *, channel: discord.TextChannel = None
-    ):
+    ) -> None:
         """
         Allows moderators/admins/owners to prevent messages from being
         sent in a channel.
         """
-        channel = channel or context.channel
+        channel: discord.TextChannel = channel or context.channel
         await channel.set_permissions(context.guild.default_role, send_messages=False)
         await context.send("🔒 Channel is locked.")
 
@@ -158,12 +165,12 @@ class Moderation(commands.Cog):
     @is_mod()
     async def unlock(
         self, context: commands.Context, *, channel: discord.TextChannel = None
-    ):
+    ) -> None:
         """
         Allows moderators/admins/owners to allow messages to be sent
         in a channel.
         """
-        channel = channel or context.channel
+        channel: discord.TextChannel = channel or context.channel
         await channel.set_permissions(context.guild.default_role, send_messages=None)
         await context.send("🔓 Channel is unlocked.")
 
@@ -171,15 +178,15 @@ class Moderation(commands.Cog):
     @is_mod()
     async def slowmode(
         self,
-        context,
+        context: commands.Context,
         channel: Optional[discord.TextChannel] = None,
         *,
         duration: int = None,  # Placeholder typehint until I rework time converter.
-    ):
+    ) -> None:
         """
         Allows moderators/admins/owners to set a channel's slowmode delay.
         """
-        channel = channel or context.channel
+        channel: discord.TextChannel = channel or context.channel
 
         await channel.edit(slowmode_delay=duration)
         await context.send(
@@ -192,13 +199,14 @@ class Moderation(commands.Cog):
     @is_mod()
     async def warn(
         self, context: commands.Context, member: UserConverter, *, reason: str = None
-    ):
+    ) -> None:
         """
         Allows moderators/admins/owners to give a warning to a user.
         """
+        member: discord.Member = member
         warning = (
             await context.bot.pool.fetchval(
-                "SELECT warn FROM warnings WHERE guild_id = $1 AND warned = $2 ORDER BY warn DESC;",
+                "SELECT warned FROM warns WHERE guild = $1 AND user = $2 ORDER BY warned DESC;",
                 context.guild.id,
                 member.id,
             )
@@ -206,11 +214,11 @@ class Moderation(commands.Cog):
         )
 
         await context.bot.pool.execute(
-            "INSERT INTO warnings VALUES ($1, $2, $3, $4, $5, $6)",
-            member.id,
-            reason or "No reason provided.",
-            context.author.id,
+            "INSERT INTO warns (guild, user, author, warn, warned, created) VALUES ($1, $2, $3, $4, $5, $6)",
             context.guild.id,
+            member.id,
+            context.author.id,
+            reason or "No reason provided.",
             warning + 1,
             discord.utils.utcnow(),
         )
@@ -223,7 +231,7 @@ class Moderation(commands.Cog):
         except discord.Forbidden:
             sent = False
 
-        embed = context.bot.embed(
+        embed: discord.Embed = context.bot.embed(
             color=0xE74C3C,
             title=f"Warning #{warning + 1} issued to {member}",
             description=f"**{context.author} has issued a warning to {member} for the reason of:\n\n{reason or 'No reason provided.'}**",
@@ -236,13 +244,15 @@ class Moderation(commands.Cog):
 
     @commands.command()
     @is_mod()
-    async def warns(self, context: commands.Context, *, member: UserConverter = None):
+    async def warns(
+        self, context: commands.Context, *, member: UserConverter = None
+    ) -> None:
         """
         Allows moderators/admins/owners to view their own or others warnings.
         """
-        member = member or context.author
+        member: discord.Member = member or context.author
         warns = await context.bot.pool.fetch(
-            "SELECT * FROM warnings WHERE guild_id = $1 AND warned = $2 ORDER BY warn ASC;",
+            "SELECT * FROM warns WHERE guild = $1 AND user = $2 ORDER BY warned ASC;",
             context.guild.id,
             member.id,
         )
@@ -256,19 +266,19 @@ class Moderation(commands.Cog):
     @is_mod()
     async def unwarn(
         self, context: commands.Context, warn: int, *, member: UserConverter
-    ):
+    ) -> None:
         """
         Allows moderators/admins/owners to remove warnings from a user.
         """
         warning = await context.bot.pool.fetchval(
-            "SELECT warn FROM warnings WHERE guild_id = $1 AND warned = $2 AND warn = $3",
+            "SELECT warned FROM warnings WHERE guild = $1 AND user = $2 AND warned = $3",
             context.guild.id,
             member.id,
             warn,
         )
         if warning:
             await context.bot.pool.execute(
-                "DELETE FROM warnings WHERE guild_id = $1 AND warned = $2 AND warn = $3",
+                "DELETE FROM warns WHERE guild = $1 AND user = $2 AND warned = $3",
                 context.guild.id,
                 member.id,
                 warn,
@@ -285,10 +295,12 @@ class Moderation(commands.Cog):
         member: UserConverter,
         *,
         duration: int = None,  # Placeholder typehint until I rework time converter.
-    ):
+    ) -> None:
         """
         Allows moderators/admins/owners to mute a user.
         """
+        member: discord.Member = member
+
         role: discord.Role = self.mute_role.get(context.guild.id)
         if not role:
             await context.send(
@@ -315,7 +327,7 @@ class Moderation(commands.Cog):
             self.muted[context.guild.id] = {member.id: timespan}
 
         await context.bot.pool.execute(
-            "INSERT INTO mutes VALUES ($1, $2, $3, $4, $5)",
+            "INSERT INTO mutes (guild, user, ends, starts, reason) VALUES ($1, $2, $3, $4, $5)",
             context.guild.id,
             member.id,
             timespan,
@@ -338,10 +350,11 @@ class Moderation(commands.Cog):
 
     @commands.command()
     @is_mod()
-    async def unmute(self, context: commands.Context, *, member: UserConverter):
+    async def unmute(self, context: commands.Context, *, member: UserConverter) -> None:
         """
         Allows moderators/admins/owners to unmute a user.
         """
+        member: discord.Member = member
         muted = self.muted.get(context.guild.id).copy()
         if member.id in muted.keys():
 
@@ -358,7 +371,7 @@ class Moderation(commands.Cog):
 
             del self.muted[context.guild.id][member.id]
             await context.bot.pool.execute(
-                "DELETE FROM mutes WHERE guild_id = $1 AND users = $2",
+                "DELETE FROM mutes WHERE guild = $1 AND user = $2",
                 context.guild.id,
                 member.id,
             )
@@ -375,13 +388,13 @@ class Moderation(commands.Cog):
 
     @commands.command()
     @is_mod()
-    async def mutes(self, context: commands.Context):
+    async def mutes(self, context: commands.Context) -> None:
         """
         Allows moderators/admins/owners to view currently
         muted users and their mute duration.
         """
         mutes = await context.bot.pool.fetch(
-            "SELECT * FROM mutes WHERE guild_id = $1", context.guild.id
+            "SELECT * FROM mutes WHERE guild = $1", context.guild.id
         )
         if mutes:
             await start_menu(context, Mutes(mutes))
