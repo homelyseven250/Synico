@@ -316,7 +316,7 @@ def guild_bot_owner():
 
     async def predicate(context: commands.Context):
         if (
-            context.author.id in context.bot.owner_ids
+            context.author.id == context.bot.owner_id
             or context.author.id == context.guild.owner_id
         ):
             return True
