@@ -36,13 +36,12 @@ class Developer(commands.Cog):
         self,
         context: commands.Context,
         *,
-        extensions: tuple[str],
+        extensions: str,
     ) -> None:
         """
         Reloads selected modules.
         """
-        await context.send(extensions)
-        return
+        extensions: tuple[str] = tuple(extensions.split())
         reloaded = []
         not_reloaded = []
         if extensions[0] == "~":
@@ -68,10 +67,11 @@ class Developer(commands.Cog):
 
     @commands.command()
     @commands.is_owner()
-    async def load(self, context: commands.Context, *, extensions: tuple[str]) -> None:
+    async def load(self, context: commands.Context, *, extensions: str) -> None:
         """
         Loads selected modules.
         """
+        extensions: tuple[str] = tuple(extensions.split())
         loaded = []
         not_loaded = []
         if extensions[0] == "~":
@@ -97,12 +97,11 @@ class Developer(commands.Cog):
 
     @commands.command()
     @commands.is_owner()
-    async def unload(
-        self, context: commands.Context, *, extensions: tuple[str]
-    ) -> None:
+    async def unload(self, context: commands.Context, *, extensions: str) -> None:
         """
         Unloads selected modules.
         """
+        extensions: tuple[str] = tuple(extensions.split())
         unloaded = []
         not_unloaded = []
         if extensions[0] == "~":
