@@ -13,18 +13,19 @@ class Errors(commands.Cog):
     exception output.
     """
 
-    def __init__(self, bot):
+    def __init__(self, bot) -> None:
         self.bot = bot
 
-    async def format_error(self, context, error):
+    # Need to to decide on error type before adding typehint
+    async def format_error(self, context: commands.Context, error) -> None:
         """
         |coro|
 
         A method to escape markdown within a string
         before sending error output.
         """
-        formatted = discord.utils.escape_markdown(error)
-        await context.reply(f"**⚠️ | {formatted}**")
+        formatted = discord.utils.escape_markdown(str(error))
+        await context.send(content=f"**⚠️ | {formatted}**", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_command_error(self, context: commands.Context, error):
@@ -48,63 +49,69 @@ class Errors(commands.Cog):
             )
 
         elif isinstance(error, commands.MissingRequiredArgument):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.TooManyArguments):
             await self.format_error(
+                context,
                 f"{context.command} received too many inputs. \
-                \nProper usage: {context.prefix}{context.command.signature}"
+                \nProper usage: {context.prefix}{context.command.signature}",
             )
 
         elif isinstance(error, commands.MessageNotFound):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.MemberNotFound):
-            await self.format_error(f"Could not find member: {error.argument}")
+            await self.format_error(context, f"Could not find member: {error.argument}")
 
         elif isinstance(error, commands.GuildNotFound):
-            await self.format_error(f"Could not find server: {error.argument}")
+            await self.format_error(context, f"Could not find server: {error.argument}")
 
         elif isinstance(error, commands.UserNotFound):
-            await self.format_error(f"Could not find user: {error.argument}")
+            await self.format_error(context, f"Could not find user: {error.argument}")
 
         elif isinstance(error, commands.ChannelNotFound):
-            await self.format_error(f"Could not find channel: {error.argument}")
+            await self.format_error(
+                context, f"Could not find channel: {error.argument}"
+            )
 
         elif isinstance(error, commands.ChannelNotReadable):
             await self.format_error(
-                f"Unable to access channel: {error.argument.mention}"
+                context, f"Unable to access channel: {error.argument.mention}"
             )
 
         elif isinstance(error, commands.BadColourArgument):
-            await self.format_error(f"Invalid color: {error.argument}")
+            await self.format_error(context, f"Invalid color: {error.argument}")
 
         elif isinstance(error, commands.RoleNotFound):
-            await self.format_error(f"Could not find role: {error.argument}")
+            await self.format_error(context, f"Could not find role: {error.argument}")
 
         elif isinstance(error, commands.BadInviteArgument):
             await self.format_error(
-                f"Invite <{error.argument}> is either invalid or has expired."
+                context, f"Invite <{error.argument}> is either invalid or has expired."
             )
 
         elif isinstance(error, commands.EmojiNotFound):
-            await self.format_error(f"Could not find emoji: {error.argument}")
+            await self.format_error(context, f"Could not find emoji: {error.argument}")
 
         elif isinstance(error, commands.GuildStickerNotFound):
-            await self.format_error(f"Could not find sticker: {error.argument}")
+            await self.format_error(
+                context, f"Could not find sticker: {error.argument}"
+            )
 
         elif isinstance(error, commands.PartialEmojiConversionFailure):
             await self.format_error(
-                f"Failed to convert {error.argument} into a Partial Emoji."
+                context, f"Failed to convert {error.argument} into a Partial Emoji."
             )
 
         elif isinstance(error, commands.BadBoolArgument):
             await self.format_error(
-                f"{error.argument} is not a valid option. Either True or False."
+                context,
+                f"{error.argument} is not a valid option. Either True or False.",
             )
 
         elif isinstance(error, commands.ThreadNotFound):
-            await self.format_error(f"Could not find thread: {error.argument}")
+            await self.format_error(context, f"Could not find thread: {error.argument}")
 
         elif isinstance(error, commands.BadFlagArgument):
             try:
@@ -113,47 +120,52 @@ class Errors(commands.Cog):
                 name = error.flag.annotation.__class__.__name__
 
             await self.format_error(
-                f"Could not convert flag {error.flag.name} to {name}"
+                context, f"Could not convert flag {error.flag.name} to {name}"
             )
 
         elif isinstance(error, commands.MissingFlagArgument):
-            await self.format_error(f"Input missing for flag {error.flag.name}")
+            await self.format_error(
+                context, f"Input missing for flag {error.flag.name}"
+            )
 
         elif isinstance(error, commands.TooManyFlags):
             await self.format_error(
+                context,
                 f"{error.flag.name} accepts {error.flag.max_args} values\
-                but received {len(error.values)} values."
+                but received {len(error.values)} values.",
             )
 
         elif isinstance(error, commands.MissingRequiredFlag):
-            await self.format_error(f"Flag {error.flag.name} did not receive an input.")
+            await self.format_error(
+                context, f"Flag {error.flag.name} did not receive an input."
+            )
 
         elif isinstance(error, commands.BadUnionArgument):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.BadLiteralArgument):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.UnexpectedQuoteError):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.InvalidEndOfQuotedStringError):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.ExpectedClosingQuoteError):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.CommandNotFound):
             return
 
         elif isinstance(error, commands.CheckAnyFailure):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.PrivateMessageOnly):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.NoPrivateMessage):
-            await self.format_error(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.NotOwner):
             return

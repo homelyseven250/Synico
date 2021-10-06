@@ -1,6 +1,7 @@
 import inspect
 import os
 from concurrent.futures import ThreadPoolExecutor
+from typing import Union
 
 import discord
 from discord.ext import commands, menus
@@ -49,7 +50,7 @@ class UserConverter(commands.Converter):
         except commands.MemberNotFound:
             pass
 
-        raise commands.MemberNotFound(argument)
+        return discord.Object(int(argument))
 
 
 class RoleConverter(commands.Converter):
@@ -69,7 +70,8 @@ class RoleConverter(commands.Converter):
                     or str(role.id) == argument
                 )
 
-            if found := discord.utils.find(check, context.guild.roles):
+            found: discord.Role = discord.utils.find(check, context.guild.roles)
+            if found:
                 return found
 
 
@@ -99,16 +101,13 @@ class SourceReader(commands.Converter):
                 )
 
             page_source = StringPagination(result.pages)
-            menu = menus.MenuPages(page_source, delete_message_after=True)
-            return menu
+            return page_source
 
         with ThreadPoolExecutor() as pool:
             result = await context.bot.loop.run_in_executor(pool, self.cmd_copy, cmd)
 
         page_source = StringPagination(result.pages)
-        menu = menus.MenuPages(page_source, delete_message_after=True)
-
-        return menu
+        return page_source
 
     async def find_command(self, context, argument):
         """
@@ -165,7 +164,7 @@ async def start_menu(
     context: commands.Context,
     source: menus.ListPageSource,
     delete_message_after: bool = True,
-):
+) -> None:
     """
     |coro|
 
@@ -181,10 +180,10 @@ class StringPagination(menus.ListPageSource):
     codeblock use without embedding.
     """
 
-    def __init__(self, data):
+    def __init__(self, data) -> None:
         super().__init__(data, per_page=1)
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu, entries) -> None:
         return entries + f"\n\nPage {menu.current_page + 1}/{self.get_max_pages()}"
 
 
@@ -194,10 +193,10 @@ class Tags(menus.ListPageSource):
     relating to guild tags.
     """
 
-    def __init__(self, data):
+    def __init__(self, data) -> None:
         super().__init__(data, per_page=10)
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu, entries) -> discord.Embed:
         embed = discord.Embed(
             description="\n".join(
                 [f"{index}. {tag[5]}" for index, tag in enumerate(entries, start=1)]
@@ -217,10 +216,10 @@ class Mutes(menus.ListPageSource):
     relating to muted users in a guild.
     """
 
-    def __init__(self, data):
+    def __init__(self, data) -> None:
         super().__init__(data, per_page=1)
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu, entries) -> discord.Embed:
         remaining = discord.utils.format_dt(entries[2], "R")
         issued = discord.utils.format_dt(entries[3])
 
@@ -238,10 +237,10 @@ class Warnings(menus.ListPageSource):
     relating to warnings in a guild.
     """
 
-    def __init__(self, data):
+    def __init__(self, data) -> None:
         super().__init__(data, per_page=1)
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu, entries) -> discord.Embed:
 
         embed = discord.Embed(
             title=f"Warning {menu.current_page + 1}/{self.get_max_pages()}",
@@ -258,10 +257,10 @@ class Streamers(menus.ListPageSource):
     relating to followed Twitch streamers in a guild.
     """
 
-    def __init__(self, data):
+    def __init__(self, data) -> None:
         super().__init__(data, per_page=15)
 
-    async def format_page(self, menu, entries):
+    async def format_page(self, menu, entries) -> discord.Embed:
 
         embed = discord.Embed(
             title=f"Following {len(entries)} Twitch channels",
@@ -277,7 +276,7 @@ class Streamers(menus.ListPageSource):
         return embed
 
 
-def has_admin(context):
+def has_admin(context: commands.Context) -> bool:
     """
     Returns whether a user has administrative power.
     """
@@ -333,7 +332,7 @@ def is_admin():
     whether a user has higher level authorization.
     """
 
-    async def predicate(context):
+    async def predicate(context: commands.Context):
         if (
             context.author.id == context.guild.owner_id
             or context.guild.get_role(
@@ -355,7 +354,7 @@ def is_mod():
     whether a user has lower level authorization.
     """
 
-    async def predicate(context):
+    async def predicate(context: commands.Context):
         if (
             context.author.id == context.guild.owner_id
             or context.guild.get_role(

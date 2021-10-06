@@ -9,16 +9,21 @@ from pyppeteer import launch
 from utils import Streamers, is_mod, start_menu
 
 
+# This is a pretty messy file
+# That was made in a short amount of time
+# It will be optimized and typehinted soon enough
+# Or possibly replaced to use the actual Twitch
+# API to do these actions
 class Streams(commands.Cog):
     """
     A module dedicated to Twitch Live notifications.
     """
 
-    def __init__(self, bot):
+    def __init__(self, bot) -> None:
         self.bot = bot
         self.bot.loop.create_task(self.__ainit__())
 
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         """
         This method is called before the extension is unloaded
         to allow for the running task loop to gracefully
@@ -27,14 +32,14 @@ class Streams(commands.Cog):
         self.twitch_live.stop()
         return super().cog_unload()
 
-    async def __ainit__(self):
+    async def __ainit__(self) -> None:
         """
         |coro|
 
         An asynchronous version of :method:`__init__`
         to access coroutines.
         """
-        self.twitch_live.start()
+        # self.twitch_live.start()
 
     @tasks.loop(seconds=30, reconnect=True)
     async def twitch_live(self):
@@ -245,8 +250,8 @@ class Streams(commands.Cog):
             )
         }
 
-    @commands.group(invoke_without_command=True)
-    @is_mod()
+    # @commands.group(invoke_without_command=True)
+    # @is_mod()
     async def twitch(self, context: commands.Context):
         """
         Show currently followed Twitch channels.
@@ -261,8 +266,8 @@ class Streams(commands.Cog):
         else:
             await context.send(f"No Twitch channels are followed in {context.guild}")
 
-    @twitch.command(name="follow")
-    @is_mod()
+    # @twitch.command(name="follow")
+    # @is_mod()
     async def twitch_follow(
         self,
         context: commands.Context,
@@ -324,8 +329,8 @@ class Streams(commands.Cog):
             f"{context.guild} is now following <https://www.twitch.tv/{streamer.lower()}>"
         )
 
-    @twitch.command(name="unfollow")
-    @is_mod()
+    # @twitch.command(name="unfollow")
+    # @is_mod()
     async def twitch_unfollow(self, context: commands.Context, *, streamer: str):
         """
         Unfollow a Twitch channel and no longer get notified

@@ -13,22 +13,29 @@ class Info(commands.Cog):
         self.bot = bot
 
     @commands.command(name="avatar", aliases=["avi", "av"])
-    async def _avatar(self, context: commands.Context, *, member: UserConverter = None):
+    async def _avatar(
+        self, context: commands.Context, *, member: UserConverter = None
+    ) -> None:
         """
         Display a user's avatar.
         """
-        member = member or context.author
-        embed = self.bot.embed(color=0x2ECC71)
+        member: discord.Member = member or context.author
+        embed: discord.Embed = context.bot.embed(color=0x2ECC71)
         embed.set_image(url=member.display_avatar)
         embed.set_footer(text=f"{member}'s Avatar")
         await context.send(embed=embed)
 
     @commands.command(aliases=["ui", "userinfo"])
-    async def whois(self, context: commands.Context, *, member: UserConverter = None):
+    async def whois(
+        self,
+        context: commands.Context,
+        *,
+        member: UserConverter = commands.Option(default=None, description="Member"),
+    ) -> None:
         """
         Display information on a user.
         """
-        member = member or context.author
+        member: discord.Member = member or context.author
 
         created = discord.utils.format_dt(member.created_at)
         created_since = discord.utils.format_dt(member.created_at, "R")
@@ -54,7 +61,7 @@ class Info(commands.Cog):
 
         roles = ", ".join([role.mention for role in member.roles[1:43]])
 
-        embed = self.bot.embed(
+        embed: discord.Embed = self.bot.embed(
             color=0x2ECC71,
             description=f"**Account Details**:\nJoined {context.guild} on {joined}\n({joined_since})\n\n \
             Registered Account on {created}\n({created_since})\n\n \
@@ -68,11 +75,11 @@ class Info(commands.Cog):
         await context.send(embed=embed)
 
     @commands.command(name="server-info", aliases=["server", "si", "gi"])
-    async def server_info(self, context: commands.Context):
+    async def server_info(self, context: commands.Context) -> None:
         """
         Display information on the server.
         """
-        guild = context.guild
+        guild: discord.Guild = context.guild
 
         created = discord.utils.format_dt(guild.created_at)
         created_since = discord.utils.format_dt(guild.created_at, "R")
@@ -105,7 +112,7 @@ class Info(commands.Cog):
         channels = len(guild.channels)
         categories = len(guild.categories)
 
-        embed = self.bot.embed(
+        embed: discord.Embed = self.bot.embed(
             color=0x2ECC71,
             description=f"Server created on {created} ({created_since}) located in the **{region}**\n\n \
             **Total Members:** {members}\n\n \
@@ -121,12 +128,12 @@ class Info(commands.Cog):
         await context.send(embed=embed)
 
     @commands.command()
-    async def tags(self, context: commands.Context):
+    async def tags(self, context: commands.Context) -> None:
         """
         Show server-made tags.
         """
         tags = await context.bot.pool.fetch(
-            "SELECT * FROM tagging WHERE guild_id = $1", context.guild.id
+            "SELECT * FROM tags WHERE guild = $1", context.guild.id
         )
         if tags:
             await start_menu(context, Tags(tags))
@@ -135,12 +142,12 @@ class Info(commands.Cog):
             await context.send(f"No tags in {context.guild}")
 
     @commands.group(invoke_without_command=True)
-    async def tag(self, context: commands.Context, *, tag: str):
+    async def tag(self, context: commands.Context, *, tag: str) -> None:
         """
         Display a tag.
         """
         _tag = await context.bot.pool.fetchval(
-            "SELECT content FROM tagging WHERE guild_id = $1 AND named = $2",
+            "SELECT content FROM tags WHERE guild = $1 AND tag = $2",
             context.guild.id,
             tag,
         )
@@ -148,31 +155,28 @@ class Info(commands.Cog):
         if _tag:
             count = (
                 await context.bot.pool.fetchval(
-                    "SELECT uses FROM tagging WHERE guild_id = $1 AND named = $2",
+                    "SELECT used FROM tags WHERE guild = $1 AND tag = $2",
                     context.guild.id,
                     tag,
                 )
                 or 0
             )
             await context.bot.pool.execute(
-                "UPDATE tagging SET uses = $1 WHERE guild_id = $2 AND named = $3",
+                "UPDATE tags SET used = $1 WHERE guild = $2 AND tag = $3",
                 count + 1,
                 context.guild.id,
                 tag,
             )
 
-            await context.send(
-                content=_tag,
-                allowed_mentions=discord.AllowedMentions(
-                    everyone=False, users=False, roles=False, replied_user=True
-                ),
-            )
-            return
+            await context.send(content=_tag)
 
-        await context.send("Could not find a tag with that name.")
+        else:
+            await context.send("Could not find a tag with that name.")
 
     @tag.command(name="add")
-    async def add_tag(self, context: commands.Context, tag: str, *, content: str):
+    async def add_tag(
+        self, context: commands.Context, tag: str, *, content: str
+    ) -> None:
         """
         Create a tag.
         """
@@ -186,14 +190,13 @@ class Info(commands.Cog):
 
         else:
             _tag = await context.bot.pool.fetchval(
-                "SELECT named FROM tagging WHERE guild_id = $1 AND named = $2",
+                "SELECT tag FROM tags WHERE guild = $1 AND tag = $2",
                 context.guild.id,
                 tag,
             )
             if not _tag:
-                await context.send("Tag successfully created.")
                 await context.bot.pool.execute(
-                    "INSERT INTO tagging VALUES ($1, $2, $3, $4, $5, $6)",
+                    "INSERT INTO tags (guild, user, created, used, content, tag) VALUES ($1, $2, $3, $4, $5, $6)",
                     context.guild.id,
                     context.author.id,
                     discord.utils.utcnow(),
@@ -201,17 +204,18 @@ class Info(commands.Cog):
                     content[:1725],
                     tag[:256],
                 )
+                await context.send("Tag successfully created.")
 
             else:
                 await context.send("Tag already exists.")
 
     @tag.command(name="info")
-    async def tag_info(self, context: commands.Context, *, tag: str):
+    async def tag_info(self, context: commands.Context, *, tag: str) -> None:
         """
         Display info on a tag.
         """
         _tag = await self.bot.pool.fetch(
-            "SELECT * FROM tagging WHERE guild_id = $1 AND named = $2",
+            "SELECT * FROM tags WHERE guild = $1 AND tag = $2",
             context.guild.id,
             tag,
         )
@@ -225,7 +229,7 @@ class Info(commands.Cog):
             uses = _tag[0][3]
             date = _tag[0][2]
 
-            embed = self.bot.embed(title=name[:256], color=0x2ECC71)
+            embed: discord.Embed = self.bot.embed(title=name[:256], color=0x2ECC71)
             embed.set_author(name=str(owner), icon_url=owner.avatar.url)
             embed.set_footer(
                 text=f"Uses: {uses} | Created on {discord.utils.format_dt(date)}"
@@ -233,15 +237,15 @@ class Info(commands.Cog):
             await context.send(embed=embed)
 
         else:
-            await context.reply("Could not find a tag with that name.")
+            await context.send("Could not find a tag with that name.")
 
     @tag.command(name="delete")
-    async def delete_tag(self, context: commands.Context, *, tag: str):
+    async def delete_tag(self, context: commands.Context, *, tag: str) -> None:
         """
         Delete a server's tag.
         """
         _tag = await self.bot.pool.fetch(
-            "SELECT * FROM tagging WHERE guild_id = $1 AND named = $2",
+            "SELECT * FROM tags WHERE guild = $1 AND tag = $2",
             context.guild.id,
             tag,
         )
@@ -250,7 +254,7 @@ class Info(commands.Cog):
             permission_check = tag_perms(context, _tag[1])
             if permission_check:
                 await self.bot.pool.execute(
-                    "DELETE FROM tagging WHERE guild_id = $1 AND named = $2",
+                    "DELETE FROM tags WHERE guild = $1 AND tag = $2",
                     context.guild.id,
                     tag,
                 )
@@ -263,7 +267,9 @@ class Info(commands.Cog):
             await context.send("Could not find a tag with that name.")
 
     @tag.command(name="edit")
-    async def edit_tag(self, context: commands.Context, tag: str, *, content: str):
+    async def edit_tag(
+        self, context: commands.Context, tag: str, *, content: str
+    ) -> None:
         """
         Edit the contents of a tag.
         """
@@ -273,7 +279,7 @@ class Info(commands.Cog):
             )
 
         _tag = await self.bot.pool.fetch(
-            "SELECT * FROM tagging WHERE guild_id = $1 AND named = $2",
+            "SELECT * FROM tags WHERE guild = $1 AND tag = $2",
             context.guild.id,
             tag,
         )
@@ -282,7 +288,7 @@ class Info(commands.Cog):
             permission_check = tag_perms(context, _tag[1])
             if permission_check:
                 await context.bot.pool.execute(
-                    "UPDATE tagging SET contents = $1 WHERE guild_id = $2 AND named = $3",
+                    "UPDATE tags SET content = $1 WHERE guild = $2 AND tag = $3",
                     content,
                     context.guild.id,
                     tag,
