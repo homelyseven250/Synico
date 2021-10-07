@@ -1,5 +1,3 @@
-import difflib
-import sys
 from typing import List, Mapping, Optional
 
 import discord
@@ -27,7 +25,7 @@ class HelpCommand(commands.HelpCommand):
                     value=f"**({len(commands)}) commands**",
                 )
 
-        embed.set_thumbnail(url=self.context.bot.avatar)
+        embed.set_thumbnail(url=self.context.me.display_avatar.url)
         await self.context.send(embed=embed)
 
     async def send_cog_help(self, cog: commands.Cog) -> None:
@@ -52,7 +50,7 @@ class HelpCommand(commands.HelpCommand):
             colour=0x006CCB,
         )
 
-        embed.set_thumbnail(url=self.context.bot.avatar)
+        embed.set_thumbnail(url=self.context.me.display_avatar.url)
         embed.set_footer(
             text=f"Type {self.context.prefix}help (command) for more info on a command."
         )
@@ -82,7 +80,7 @@ class HelpCommand(commands.HelpCommand):
             colour=0x006CCB,
         )
 
-        embed.set_thumbnail(url=self.context.bot.avatar)
+        embed.set_thumbnail(url=self.context.me.display_avatar.url)
         embed.set_footer(
             text=f"Type {self.context.prefix}help (command) for more info on a command."
         )
@@ -113,7 +111,7 @@ class HelpCommand(commands.HelpCommand):
             colour=0x006CCB,
         )
 
-        embed.set_thumbnail(url=self.context.bot.avatar)
+        embed.set_thumbnail(url=self.context.me.display_avatar.url)
         await self.context.send(embed=embed)
 
 

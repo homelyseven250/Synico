@@ -1,10 +1,9 @@
-import difflib
-from typing import Union
+from typing import List
 
 import discord
-import sphobjinv as sphinx
+
 from discord.ext import commands, menus
-from utils import SourceReader
+from utils import AllCommands, SourceReader, guild_bot_owner, start_menu
 
 
 class Developer(commands.Cog):
@@ -41,7 +40,7 @@ class Developer(commands.Cog):
         """
         Reloads selected modules.
         """
-        extensions: tuple[str] = tuple(extensions.split())
+        extensions: List[str] = extensions.split()
         reloaded = []
         not_reloaded = []
         if extensions[0] == "~":
@@ -71,7 +70,7 @@ class Developer(commands.Cog):
         """
         Loads selected modules.
         """
-        extensions: tuple[str] = tuple(extensions.split())
+        extensions: List[str] = extensions.split()
         loaded = []
         not_loaded = []
         if extensions[0] == "~":
@@ -101,7 +100,7 @@ class Developer(commands.Cog):
         """
         Unloads selected modules.
         """
-        extensions: tuple[str] = tuple(extensions.split())
+        extensions: List[str] = extensions.split()
         unloaded = []
         not_unloaded = []
         if extensions[0] == "~":
@@ -137,77 +136,71 @@ class Developer(commands.Cog):
         )
         await context.bot.close()
 
-    def rtfm_option(self, search: str) -> tuple[str, int]:
+    @commands.command()
+    @commands.is_owner()
+    async def disable(self, context: commands.Context, command: str) -> None:
         """
-        This method is called to access
-        a dictionary to determine what type of search
-        is being queried.
+        Disables a command globally.
         """
-        search = search.replace(" ", "")
+        _command: commands.Command = context.bot.get_command(command)
+        if _command:
+            is_disabled: bool = context.bot.disabled_command.get(command)
+            if is_disabled:
+                await context.send(f"`{command}` command is already disabled.")
+                return
 
-        options = {
-            "latest": "https://discordpy.readthedocs.io/en/latest/",
-            "master": "https://discordpy.readthedocs.io/en/master/",
-            "python": "https://docs.python.org/3/",
-            "py": "https://docs.python.org/3/",
-        }
+            context.bot.disabled_command[command] = True
+            await context.bot.pool.execute(
+                "INSERT INTO commands (command, disabled) VALUES ($1, $2)",
+                _command.name,
+                True,
+            )
+            await context.send(f"`{command}` command has been disabled.")
+            return
 
-        for key in options.keys():
-            if search.startswith(key):
-                return options[key], len(key)
-
-        return options["latest"], 0
-
-    def rtfm_matches(
-        self, search: str
-    ) -> Union[tuple[dict[str, str], int], tuple[dict, int]]:
-        """
-        This method handles the `.inv` file to search
-        for a similar search result and return
-        any close matches.
-        """
-        url, splice = self.rtfm_option(search.lower())
-
-        inventory = sphinx.Inventory(url=url + "objects.inv")
-        inventory_data = inventory.data_file().splitlines()
-
-        content = []
-        for _object in inventory_data[3:]:
-            decoded = _object.decode("utf-8")
-
-            obj = decoded.split(" ")[0]
-            if obj == "ext/commands/api":
-                break
-
-            content.append(obj)
-
-        similar = sorted(
-            difflib.get_close_matches(search, set(content), cutoff=0.5, n=10)
-        )
-        if similar:
-            results = {match: f"{url}api.html#" + match for match in similar}
-
-            return results, splice + 1 if splice else splice
-
-        return {}, 0
+        await context.send(f"{command} does not exist.")
 
     @commands.command()
-    async def rtfm(self, context: commands.Context, *, query: str) -> None:
+    @commands.is_owner()
+    async def enable(self, context: commands.Context, command: str) -> None:
         """
-        Make a quick-search through the discord.py or python
-        documentation.
+        Enables a previously disabled command.
         """
-        results, splice = self.rtfm_matches(query)
+        _command: commands.Command = context.bot.get_command(command)
+        if _command:
+            command = _command.name
+            is_disabled: bool = context.bot.disabled_command.get(command)
+            if not is_disabled:
+                await context.send(f"{command} command is not disabled.")
+                return
 
-        embed: discord.Embed = context.bot.embed(
-            title=f'({len(results)}) Results for "{query[splice:]}'[:255] + '"',
-            description="",
-            color=0x2ECC71,
-        )
-        for key, value in results.items():
-            embed.description += f"**[`{key}`]({value})**\n"
+            context.bot.disabled_command.pop(command)
+            await context.bot.pool.execute(
+                "DELETE FROM commands WHERE command = $1", command
+            )
+            await context.send(f"`{command}` command has been enabled.")
+            return
 
-        await context.send(embed=embed)
+        await context.send(f"{command} does not exist.")
+
+    @commands.command(name="commands")
+    @guild_bot_owner()
+    async def _commands(self, context: commands.Context):
+        """
+        List all commands and whether they're enabled/disabled.
+        """
+        all_commands: List[tuple] = []
+        for command in sorted(
+            [command.name.title() for command in context.bot.commands]
+        ):
+            is_disabled: bool = context.bot.disabled_command.get(command)
+            if is_disabled:
+                all_commands.append((command, is_disabled))
+
+            else:
+                all_commands.append((command, False))
+
+        await start_menu(context, AllCommands(all_commands))
 
 
 def setup(bot):

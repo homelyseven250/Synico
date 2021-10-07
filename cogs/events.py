@@ -7,6 +7,11 @@ from discord.ext import commands, tasks
 
 
 class Events(commands.Cog):
+    """
+    A module that receives and handles
+    all incoming events.
+    """
+
     def __init__(self, bot):
         self.bot = bot
         self.embeds = {}
@@ -18,14 +23,32 @@ class Events(commands.Cog):
         loop.create_task(self.__ainit__())
 
     async def __ainit__(self) -> None:
+        """
+        |coro|
+
+        An asynchronous version of :method:`__init__`
+        to access coroutines.
+        """
         await self.dispatch_events.start()
 
     def cog_unload(self) -> None:
+        """
+        This method is called before the extension is unloaded
+        to allow for the running task loop to gracefully
+        close after finishing final iteration.
+        """
         self.dispatch_events.stop()
         super().cog_unload()
 
     @tasks.loop(seconds=10, reconnect=True)
     async def dispatch_events(self) -> None:
+        """
+        |coro|
+
+        A running task loop that repeats after each iteration
+        asynchronously to to check if a server has any
+        pending outgoing events and dispatches them.
+        """
         if len(self.embeds) >= 1:
             for guild in iter(self.embeds):
                 if len(self.embeds[guild]["embeds"]) > 0:
@@ -46,6 +69,11 @@ class Events(commands.Cog):
                         del self.embeds[guild]["embeds"][:10]
 
     async def prepare_webhook(self, channel: discord.TextChannel) -> discord.Webhook:
+        """
+        |coro|
+
+        Returns a `Webhook` for dispatching events.
+        """
         if self.webhooks.get(channel.guild.id):
             return discord.Webhook.from_url(
                 self.webhooks[channel.guild.id], session=self.bot.cs
@@ -63,9 +91,15 @@ class Events(commands.Cog):
                 return webhook
 
     async def log_channel(self, guild: int) -> Optional[discord.TextChannel]:
+        """
+        |coro|
+
+        Either returns a `TextChannel` or `None` if a server has a
+        channel setup for logging events.
+        """
         if not self.logs.get(guild):
             channel: Optional[int] = await self.bot.pool.fetchval(
-                "SELECT log FROM guild WHERE guild = $1", guild
+                "SELECT log FROM guilds WHERE guild = $1", guild
             )
             if channel:
                 log_channel: discord.TextChannel = self.bot.get_channel(channel)
@@ -79,6 +113,9 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
+        """
+        An event called when a message is deleted.
+        """
         if not message.author.bot:
             channel = await self.log_channel(message.guild.id)
             if channel:
@@ -107,6 +144,9 @@ class Events(commands.Cog):
     async def on_raw_bulk_message_delete(
         self, payload: discord.RawBulkMessageDeleteEvent
     ) -> None:
+        """
+        An event called when a bulk amount of messages are deleted.
+        """
         if len(payload.cached_messages) >= 10:
             channel = await self.log_channel(payload.guild_id)
             if channel:
@@ -135,6 +175,9 @@ class Events(commands.Cog):
     async def on_message_edit(
         self, before: discord.Message, after: discord.Message
     ) -> None:
+        """
+        An event called when a message has been edited.
+        """
         if not before.author.bot:
             channel = await self.log_channel(before.guild.id)
             if channel:
@@ -206,6 +249,9 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel) -> None:
+        """
+        An event called when a channel has been created.
+        """
         log_channel = await self.log_channel(channel.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
@@ -228,6 +274,9 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel) -> None:
+        """
+        An event called when a channel has been deleted.
+        """
         log_channel = await self.log_channel(channel.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
@@ -253,7 +302,7 @@ class Events(commands.Cog):
         self, before: discord.abc.GuildChannel, after: discord.abc.GuildChannel
     ) -> None:
         """
-        An event called whenever a guild channel is updated.
+        An event called whenever a channel is updated.
         """
         channel = await self.log_channel(before.guild.id)
         if channel:
@@ -340,7 +389,7 @@ class Events(commands.Cog):
                     f"Category: {before.category or 'N/A'} -> {after.category or 'N/A'}"
                 )
 
-            embed = self.bot.embed(
+            embed: discord.Embed = self.bot.embed(
                 description=f"**{str(after.type).title()} channel\
                 `{after.name}` has been updated.\n\n{changes}**",
                 color=0xE67E22,
@@ -370,6 +419,9 @@ class Events(commands.Cog):
         channel: Union[discord.abc.GuildChannel, discord.Thread],
         last_pin: Optional[datetime.datetime],
     ) -> None:
+        """
+        An event called when a message was pinned/unpinned.
+        """
         log_channel = await self.log_channel(channel.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
@@ -393,6 +445,9 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_join(self, thread: discord.Thread) -> None:
+        """
+        An event called when a thread was created/joined.
+        """
         log_channel = await self.log_channel(thread.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
@@ -423,6 +478,9 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_thread_delete(self, thread: discord.Thread) -> None:
+        """
+        An event called when a thread was deleted.
+        """
         log_channel = await self.log_channel(thread.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
@@ -446,6 +504,9 @@ class Events(commands.Cog):
     async def on_thread_update(
         self, before: discord.Thread, after: discord.Thread
     ) -> None:
+        """
+        An event called when a thread has been updated.
+        """
         log_channel = await self.log_channel(after.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
@@ -482,6 +543,11 @@ class Events(commands.Cog):
     async def on_member_parsing(
         self, channel: discord.abc.GuildChannel, member: discord.Member, message: str
     ) -> str:
+        """
+        |coro|
+
+        Returns a formatted string for custom messages in `on_member_x` events.
+        """
         return message.format(
             user=member.mention,
             user_id=member.id,
@@ -615,6 +681,9 @@ class Events(commands.Cog):
     async def on_member_update(
         self, before: discord.Member, after: discord.Member
     ) -> None:
+        """
+        An event called when member data has been updated.
+        """
         channel = await self.log_channel(before.guild.id)
         if channel:
             webhook = await self.prepare_webhook(channel)
@@ -673,6 +742,9 @@ class Events(commands.Cog):
     async def on_presence_update(
         self, before: discord.Member, after: discord.Member
     ) -> None:
+        """
+        An event called when a member's activity/presence has been updated.
+        """
         channel = await self.log_channel(before.guild.id)
         if channel:
             webhook = await self.prepare_webhook(channel)
@@ -757,6 +829,9 @@ class Events(commands.Cog):
     # Deprecated due to changes in Discord API
     @commands.Cog.listener()
     async def on_user_update(self, before: discord.User, after: discord.User) -> None:
+        """
+        An event called when user data has been updated.
+        """
         if not before.bot:
             guilds: List[discord.Guild] = self.bot.guilds
             for guild in guilds:
@@ -803,23 +878,33 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:
-        if not hasattr(self, "owner"):
-            self.owner: discord.User = await self.bot.fetch_user(self.bot.owner_id)
+        """
+        An event called when the bot joins a server.
+        """
+        if not hasattr(self, "owners"):
+            self.owners: discord.User = [
+                await self.bot.fetch_user(owner) for owner in self.bot.owner_ids
+            ]
 
-        else:
+        for owner in self.owners:
             time = discord.utils.format_dt(discord.utils.utcnow())
-            await self.owner.send(
+            await owner.send(
                 f"{time}\n Guilds: {len(self.bot.guilds)}\n\n{guild.me} has joined {guild} with a member count of {guild.member_count}."
             )
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
-        if not hasattr(self, "owner"):
-            self.owner: discord.User = await self.bot.fetch_user(self.bot.owner_id)
+        """
+        An event called when the bot leaves a server.
+        """
+        if not hasattr(self, "owners"):
+            self.owners: discord.User = [
+                await self.bot.fetch_user(owner) for owner in self.bot.owner_ids
+            ]
 
-        else:
+        for owner in self.owners:
             time = discord.utils.format_dt(discord.utils.utcnow())
-            await self.owner.send(
+            await owner.send(
                 f"{time}\n Guilds: {len(self.bot.guilds)}\n\n{guild.me} left or was removed from {guild}."
             )
 
@@ -827,6 +912,9 @@ class Events(commands.Cog):
     async def on_guild_update(
         self, before: discord.Guild, after: discord.Guild
     ) -> None:
+        """
+        An event called when a server has been updated.
+        """
         channel = await self.log_channel(before.id)
         if channel:
             webhook = await self.prepare_webhook(channel)
@@ -870,6 +958,9 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: discord.Role) -> None:
+        """
+        An event called when a role has been created.
+        """
         channel = await self.log_channel(role.guild.id)
         if channel:
             webhook = await self.prepare_webhook(channel)
@@ -891,6 +982,9 @@ class Events(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_role_delete(self, role: discord.Role) -> None:
+        """
+        An event called when a role has been deleted.
+        """
         channel = await self.log_channel(role.guild.id)
         if channel:
             webhook = await self.prepare_webhook(channel)
@@ -914,6 +1008,9 @@ class Events(commands.Cog):
     async def on_guild_role_update(
         self, before: discord.Role, after: discord.Role
     ) -> None:
+        """
+        An event called when a role has been updated.
+        """
         channel = await self.log_channel(before.guild.id)
         if channel:
             webhook = await self.prepare_webhook(channel)
