@@ -34,6 +34,7 @@ class Settings(commands.Cog):
         """
         Update the guild's admin role.
         """
+        role: discord.Role = role
         await context.bot.pool.execute(
             "UPDATE guilds SET admin = $1 WHERE guild = $2", role.id, context.guild.id
         )
@@ -47,6 +48,7 @@ class Settings(commands.Cog):
         """
         Update the guild's mod role.
         """
+        role: discord.Role = role
         await context.bot.pool.execute(
             "UPDATE guilds SET mod = $1 WHERE guild = $2", role.id, context.guild.id
         )

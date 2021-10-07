@@ -17,7 +17,7 @@ class Bot(commands.Bot):
 
     Attributes
 
-    pool: :class:`asyncpg.pool.Pool`
+    pool: :class:`Pool`
         A lingering connection pool
         established when accessing
         the database.
@@ -26,7 +26,7 @@ class Bot(commands.Bot):
         A datetime object that is
         created when the class is initialized.
 
-    embed: :class:`discord.Embed`
+    embed: :class:`Embed`
         An Embed that has not been
         initialized to avoid calling multiple
         times unneedingly and accepts the
@@ -58,7 +58,7 @@ class Bot(commands.Bot):
             command_prefix=self.get_prefix,
             case_insensitive=True,
             intents=intents,
-            owner_id=220418804176388097,
+            owner_ids=[220418804176388097, 672498629864325140],
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
@@ -139,7 +139,6 @@ class Bot(commands.Bot):
         self.uptime = discord.utils.utcnow()
         self.embed = discord.Embed
         self.cs = aiohttp.ClientSession()
-        self.avatar = self.user.avatar.url
 
     async def on_ready(self) -> None:
         """
@@ -172,7 +171,7 @@ class Bot(commands.Bot):
         returns :class:`str` containing the prefix set for the :class:`discord.Guild`
         or defaults to default prefix.
         """
-        if message.guild:
+        if message.guild and hasattr(self, "prefix"):
             if not self.prefix.get(message.guild.id, None):
                 await self.add_prefix(message.guild.id)
 
@@ -187,19 +186,28 @@ class Bot(commands.Bot):
         """
         if message.guild and not message.author.bot:
             if getattr(self, "cache", None):
-                self.cache["member"].update(
-                    {message.author.id: message.author}
-                )  # Pre-message intent local caching
+                self.cache["member"].update({message.author.id: message.author})
 
                 if self.user.mentioned_in(message):
-                    self.cache["member"].update(
-                        {message.author.id: message.author}
-                    )  # Post-message intent local caching
+                    self.cache["member"].update({message.author.id: message.author})
 
             try:
                 await self.process_commands(message)
             except Exception as error:
                 print(error)
+
+    async def process_commands(self, message: discord.Message) -> None:
+        context = await self.get_context(message)
+        if context.command:
+            command = context.command.name
+            is_disabled = self.disabled_command.get(command)
+            if is_disabled:
+                await context.send(
+                    f"Command `{context.prefix}{context.command.name}` is currently disabled."
+                )
+                return
+
+            return await super().process_commands(message)
 
     async def on_command_completion(self, context: commands.Context):
         """
@@ -216,7 +224,7 @@ class Bot(commands.Bot):
         the prefix assign to the :class:`discord.Guild`.
         """
         await self.pool.execute(
-            "INSERT INTO guilds (guild, prefix) VALUES ($1, $2) ON CONFLICT (guild) DO NOTHING",
+            "INSERT INTO guilds (guild, prefix) VALUES ($1, $2) ON CONFLICT (guilds_pkey) DO NOTHING",
             guild_id,
             self.user.mention,
         )
@@ -245,6 +253,13 @@ class Bot(commands.Bot):
             guild: {"admin": admin, "mod": mod}
             for guild, admin, mod in await self.pool.fetch(
                 "SELECT guild, admin, mod FROM guilds"
+            )
+        }
+
+        self.disabled_command: dict[str, bool] = {
+            command: disabled
+            for command, disabled in await self.pool.fetch(
+                "SELECT command, disabled FROM commands"
             )
         }
 

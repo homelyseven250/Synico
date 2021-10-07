@@ -97,3 +97,9 @@ CREATE TABLE public.warns (
     warned bigint,
     created timestamp with time zone
 );
+
+CREATE TABLE public.blacklist
+(
+    guild bigint,
+    "user" bigint
+);

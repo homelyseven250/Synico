@@ -1,7 +1,7 @@
 import inspect
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Union
+from typing import Optional, Union
 
 import discord
 from discord.ext import commands, menus
@@ -58,12 +58,12 @@ class RoleConverter(commands.Converter):
     Attempts to find a guild role case-insensitively.
     """
 
-    async def convert(self, context, argument):
+    async def convert(self, context: commands.Context, argument: str):
         try:
             return await commands.RoleConverter().convert(context, argument)
         except commands.RoleNotFound:
 
-            def check(role):
+            def check(role: discord.Role):
                 return (
                     role.name.lower() == argument.lower()
                     or str(role).lower() == argument.lower()
@@ -81,14 +81,16 @@ class SourceReader(commands.Converter):
     segment of code or an entire file.
     """
 
-    async def convert(self, context: commands.Context, argument: str):
-        cmd = await self.find_command(context, argument)
+    async def convert(
+        self, context: commands.Context, argument: str
+    ) -> Union[str, discord.Embed, dict]:
+        cmd: Optional[commands.Command] = await self.find_command(context, argument)
         if not cmd:
             if argument == "config.ini":
                 raise commands.BadArgument("Not accessible.")
 
             with ThreadPoolExecutor() as pool:
-                file = await context.bot.loop.run_in_executor(
+                file: str = await context.bot.loop.run_in_executor(
                     pool, self.file_search, argument
                 )
                 if not file:
@@ -96,33 +98,39 @@ class SourceReader(commands.Converter):
                         f"Could not find a file named **{argument}**"
                     )
 
-                result = await context.bot.loop.run_in_executor(
+                result: commands.Paginator = await context.bot.loop.run_in_executor(
                     pool, self.file_copy, file
                 )
 
-            page_source = StringPagination(result.pages)
+            page_source: Union[str, discord.Embed, dict] = StringPagination(
+                result.pages
+            )
             return page_source
 
         with ThreadPoolExecutor() as pool:
-            result = await context.bot.loop.run_in_executor(pool, self.cmd_copy, cmd)
+            result: commands.Paginator = await context.bot.loop.run_in_executor(
+                pool, self.cmd_copy, cmd
+            )
 
-        page_source = StringPagination(result.pages)
+        page_source: Union[str, discord.Embed, dict] = StringPagination(result.pages)
         return page_source
 
-    async def find_command(self, context, argument):
+    async def find_command(
+        self, context: commands.Context, argument: str
+    ) -> Union[commands.Command, bool]:
         """
         |coro|
 
         Method attempts to determine whether user input is for a command
         or for a file.
         """
-        command = context.bot.get_command(argument)
+        command: Optional[commands.Command] = context.bot.get_command(argument)
         if not command:
             return False
 
         return command
 
-    def cmd_copy(self, cmd):
+    def cmd_copy(self, cmd: commands.Command) -> commands.Paginator:
         """
         Returns a pagination class containing the source
         lines of a specific segment of code.
@@ -134,7 +142,7 @@ class SourceReader(commands.Converter):
 
         return page
 
-    def file_copy(self, file: str):
+    def file_copy(self, file: str) -> commands.Paginator:
         """
         Creates a pagination class containing the source lines
         of a file.
@@ -147,7 +155,7 @@ class SourceReader(commands.Converter):
 
         return page
 
-    def file_search(self, file: str = None):
+    def file_search(self, file: str = None) -> Optional[str]:
         """
         Returns absolute path to file being searched for.
         """
@@ -176,15 +184,40 @@ async def start_menu(
 
 class StringPagination(menus.ListPageSource):
     """
-    Returns a stringed pagination to allow for basic
+    Returns a paginated string to allow for basic
     codeblock use without embedding.
     """
 
-    def __init__(self, data) -> None:
+    def __init__(self, data: list) -> None:
         super().__init__(data, per_page=1)
 
-    async def format_page(self, menu, entries) -> None:
+    async def format_page(
+        self, menu: menus.MenuPages, entries: list
+    ) -> Union[str, discord.Embed, dict]:
         return entries + f"\n\nPage {menu.current_page + 1}/{self.get_max_pages()}"
+
+
+class AllCommands(menus.ListPageSource):
+    """
+    Returns a paginated embed displaying all
+    commands and whether they're enabled/disabled.
+    """
+
+    def __init__(self, data: list) -> None:
+        super().__init__(data, per_page=10)
+
+    async def format_page(
+        self, menu: menus.MenuPages, entries: list
+    ) -> Union[str, discord.Embed, dict]:
+        embed = discord.Embed(
+            description="\n".join(
+                f"{index}. {entrie[0]} command is {'not' if entrie[1] else ''} disabled"
+                for index, entrie in enumerate(entries, start=1)
+            ),
+            color=0x2ECC71,
+        )
+        embed.set_footer(text=f"Page {menu.current_page + 1}/{self.get_max_pages()}")
+        return embed
 
 
 class Tags(menus.ListPageSource):
@@ -193,19 +226,19 @@ class Tags(menus.ListPageSource):
     relating to guild tags.
     """
 
-    def __init__(self, data) -> None:
+    def __init__(self, data: list) -> None:
         super().__init__(data, per_page=10)
 
-    async def format_page(self, menu, entries) -> discord.Embed:
+    async def format_page(
+        self, menu: menus.MenuPages, entries: list
+    ) -> Union[str, discord.Embed, dict]:
         embed = discord.Embed(
             description="\n".join(
                 [f"{index}. {tag[5]}" for index, tag in enumerate(entries, start=1)]
             ),
             color=0x2ECC71,
         )
-        embed.set_author(
-            name=str(menu.context.guild), icon_url=menu.context.guild.icon.url
-        )
+        embed.set_author(name=str(menu.ctx.guild), icon_url=menu.ctx.guild.icon.url)
         embed.set_footer(text=f"Page {menu.current_page + 1}/{self.get_max_pages()}")
         return embed
 
@@ -216,10 +249,12 @@ class Mutes(menus.ListPageSource):
     relating to muted users in a guild.
     """
 
-    def __init__(self, data) -> None:
+    def __init__(self, data: list) -> None:
         super().__init__(data, per_page=1)
 
-    async def format_page(self, menu, entries) -> discord.Embed:
+    async def format_page(
+        self, menu: menus.MenuPages, entries: list
+    ) -> Union[str, discord.Embed, dict]:
         remaining = discord.utils.format_dt(entries[2], "R")
         issued = discord.utils.format_dt(entries[3])
 
@@ -237,10 +272,12 @@ class Warnings(menus.ListPageSource):
     relating to warnings in a guild.
     """
 
-    def __init__(self, data) -> None:
+    def __init__(self, data: list) -> None:
         super().__init__(data, per_page=1)
 
-    async def format_page(self, menu, entries) -> discord.Embed:
+    async def format_page(
+        self, menu: menus.MenuPages, entries: list
+    ) -> Union[str, discord.Embed, dict]:
 
         embed = discord.Embed(
             title=f"Warning {menu.current_page + 1}/{self.get_max_pages()}",
@@ -257,10 +294,12 @@ class Streamers(menus.ListPageSource):
     relating to followed Twitch streamers in a guild.
     """
 
-    def __init__(self, data) -> None:
+    def __init__(self, data: list) -> None:
         super().__init__(data, per_page=15)
 
-    async def format_page(self, menu, entries) -> discord.Embed:
+    async def format_page(
+        self, menu: menus.MenuPages, entries: list
+    ) -> Union[str, discord.Embed, dict]:
 
         embed = discord.Embed(
             title=f"Following {len(entries)} Twitch channels",
@@ -293,13 +332,13 @@ def has_admin(context: commands.Context) -> bool:
     return False
 
 
-def guild_owner():
+def guild_owner() -> commands.check:
     """
     A custom decorator that validates
     whether a user is the server owner.
     """
 
-    async def predicate(context):
+    async def predicate(context: commands.Context) -> Union[bool, Exception]:
         if context.author.id == context.guild.owner_id:
             return True
 
@@ -308,15 +347,15 @@ def guild_owner():
     return commands.check(predicate)
 
 
-def guild_bot_owner():
+def guild_bot_owner() -> commands.check:
     """
     A custom decorator that validates whether the user
     is the server owner or bot owner.
     """
 
-    async def predicate(context: commands.Context):
+    async def predicate(context: commands.Context) -> Union[bool, Exception]:
         if (
-            context.author.id == context.bot.owner_id
+            context.author.id in context.bot.owner_ids
             or context.author.id == context.guild.owner_id
         ):
             return True
@@ -326,13 +365,13 @@ def guild_bot_owner():
     return commands.check(predicate)
 
 
-def is_admin():
+def is_admin() -> commands.check:
     """
     A custom decorator that validates
     whether a user has higher level authorization.
     """
 
-    async def predicate(context: commands.Context):
+    async def predicate(context: commands.Context) -> Union[bool, Exception]:
         if (
             context.author.id == context.guild.owner_id
             or context.guild.get_role(
@@ -348,13 +387,13 @@ def is_admin():
     return commands.check(predicate)
 
 
-def is_mod():
+def is_mod() -> commands.check:
     """
     A custom decorator that validates
     whether a user has lower level authorization.
     """
 
-    async def predicate(context: commands.Context):
+    async def predicate(context: commands.Context) -> Union[bool, Exception]:
         if (
             context.author.id == context.guild.owner_id
             or context.guild.get_role(
@@ -374,7 +413,7 @@ def is_mod():
     return commands.check(predicate)
 
 
-def tag_perms(context: commands.Context, owner: int):
+def tag_perms(context: commands.Context, owner: int) -> bool:
     """
     This method validates permission of command author when
     editing/deleting tags.

@@ -16,19 +16,18 @@ class Errors(commands.Cog):
     def __init__(self, bot) -> None:
         self.bot = bot
 
-    # Need to to decide on error type before adding typehint
-    async def format_error(self, context: commands.Context, error) -> None:
+    async def format_error(self, context: commands.Context, error: str) -> None:
         """
         |coro|
 
         A method to escape markdown within a string
         before sending error output.
         """
-        formatted = discord.utils.escape_markdown(str(error))
+        formatted = discord.utils.escape_markdown(error)
         await context.send(content=f"**⚠️ | {formatted}**", ephemeral=True)
 
     @commands.Cog.listener()
-    async def on_command_error(self, context: commands.Context, error):
+    async def on_command_error(self, context: commands.Context, error: Exception):
         """
         An event that is fired when an exception
         occurs.
