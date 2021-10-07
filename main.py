@@ -164,7 +164,7 @@ class Bot(commands.Bot):
         self.uptime = discord.utils.utcnow()
         print(self.user, "has reconnected.", round(self.latency * 1000), "ms.")
 
-    async def get_prefix(self, message: discord.Message) -> None:
+    async def get_prefix(self, message: discord.Message):
         """
         |coro|
 
@@ -175,7 +175,7 @@ class Bot(commands.Bot):
             if not self.prefix.get(message.guild.id, None):
                 await self.add_prefix(message.guild.id)
 
-            prefix: str = self.prefix.get(message.guild.id)
+            prefix: str = self.prefix.get(message.guild.id, self.user.mention)
             return commands.when_mentioned_or(prefix)(self, message)
 
     async def on_message(self, message: discord.Message):
