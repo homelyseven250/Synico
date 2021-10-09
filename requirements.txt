@@ -7,3 +7,4 @@ jishaku==2.2.0
 PyNaCl==1.4.0
 pyppeteer==0.2.6
 sphobjinv==2.1
+python-socketio[client]==5.4.0

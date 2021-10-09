@@ -6,6 +6,8 @@ import aiohttp
 import discord
 from discord.ext import commands
 
+import webcomms
+
 from postgre import Database
 
 
@@ -58,7 +60,7 @@ class Bot(commands.Bot):
             command_prefix=self.get_prefix,
             case_insensitive=True,
             intents=intents,
-            owner_ids=[220418804176388097, 672498629864325140],
+            owner_ids=[220418804176388097, 672498629864325140, 652742251683905552],
             allowed_mentions=discord.AllowedMentions.none(),
         )
 
@@ -164,7 +166,7 @@ class Bot(commands.Bot):
         self.uptime = discord.utils.utcnow()
         print(self.user, "has reconnected.", round(self.latency * 1000), "ms.")
 
-    async def get_prefix(self, message: discord.Message) -> None:
+    async def get_prefix(self, message: discord.Message):
         """
         |coro|
 
@@ -175,7 +177,7 @@ class Bot(commands.Bot):
             if not self.prefix.get(message.guild.id, None):
                 await self.add_prefix(message.guild.id)
 
-            prefix: str = self.prefix.get(message.guild.id)
+            prefix: str = self.prefix.get(message.guild.id, self.user.mention)
             return commands.when_mentioned_or(prefix)(self, message)
 
     async def on_message(self, message: discord.Message):
@@ -266,4 +268,5 @@ class Bot(commands.Bot):
 
 if __name__ == "__main__":
     bot = Bot()
+    socketComms = webcomms.Comms(bot)
     bot.run()

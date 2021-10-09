@@ -581,7 +581,7 @@ class Events(commands.Cog):
     # Deprecated due to changes in Discord API
     async def member_channel(
         self, event: str, guild: discord.Guild, member: discord.Member
-    ) -> Optional[tuple[discord.TextChannel, str]]:
+    ):
         """
         |coro|
 
@@ -593,10 +593,11 @@ class Events(commands.Cog):
                 "SELECT join, welcome FROM guilds WHERE guild = $1", guild.id
             )
             if join:
-                channel: discord.TextChannel = self.bot.get_channel(join[0][0])
+                data: List = join[0]
+                channel: discord.TextChannel = guild.get_channel(data[7])
                 if channel:
                     join_message = await self.on_member_parsing(
-                        channel, member, join[0][1]
+                        channel, member, data[9]
                     )
                     return channel, join_message
 
@@ -605,10 +606,11 @@ class Events(commands.Cog):
                 "SELECT leave, goodbye FROM guilds WHERE guild = $1", guild.id
             )
             if leave:
-                channel = self.bot.get_channel(leave[0][0])
+                data: List = leave[0]
+                channel: discord.TextChannel = guild.get_channel(data[8])
                 if channel:
                     leave_message = await self.on_member_parsing(
-                        channel, member, leave[0][1]
+                        channel, member, data[10]
                     )
                     return channel, leave_message
 
@@ -616,7 +618,7 @@ class Events(commands.Cog):
             return None
 
     # Deprecated due to changes in Discord API
-    @commands.Cog.listener()
+    # @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
         """
         An event called whenever a member joins a server.
@@ -648,7 +650,7 @@ class Events(commands.Cog):
             self.embeds[member.guild.id] = {"webhook": webhook, "embeds": [embed]}
 
     # Deprecated due to changes in Discord API
-    @commands.Cog.listener()
+    # @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
         log_channel = await self.log_channel(member.guild.id)
         if log_channel:
