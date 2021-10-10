@@ -582,6 +582,8 @@ class Events(commands.Cog):
     async def member_channel(
         self, event: str, guild: discord.Guild, member: discord.Member
     ):
+        # Optional[tuple[discord.TextChannel, str]] apparently raises an error?
+        # Will look into this soon
         """
         |coro|
 
