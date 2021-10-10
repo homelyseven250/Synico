@@ -22,11 +22,13 @@ class Comms():
             await sio.emit('pong')
 
         @sio.on('settingsChange')
-        def settingsChange(data):
+        async def settingsChange(data):
             print(data)
-            if data['key'] == 'bot-name':
+            if data['key'] == 'bot-prefix':
                 # Do stuff with data['value']
-                pass
+                await self.pool.execute(
+                'UPDATE guilds SET prefix=$1 WHERE guild=$2', data['value'], int(data['guild_id']))
+                bot.prefix.update({int(data['guild_id']): data['value']})
 
         @sio.on('getAllCommands')
         async def getAllCommands(data):
@@ -103,13 +105,14 @@ class Comms():
             await sio.emit('sendGuildDisabledCommands', {
                      "sid": data["sid"], "disabledCommands": guild_commands[0].get('commands')})
 
+
         async def connect():
             print("running connecting method")
             await sio.connect(config['WEBSITE']['url'], auth = {
                     "key": config['WEBSITE']['key']}, transports='websocket')
             await sio.wait()
         
-        #Beginning here, this is minorly modified code from https://git.io/Jo29J
+        # Beginning here, this is minorly modified code from https://git.io/Jo29J
         def start_background_loop(loop: asyncio.AbstractEventLoop) -> None:
             asyncio.set_event_loop(loop)
             loop.run_forever()
@@ -121,3 +124,4 @@ class Comms():
         t.start()
 
         task = asyncio.run_coroutine_threadsafe(connect(), self.loop)
+        # End modified section
