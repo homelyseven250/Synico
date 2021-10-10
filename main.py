@@ -202,8 +202,10 @@ class Bot(commands.Bot):
         context = await self.get_context(message)
         if context.command:
             command = context.command.name
+            guild_commands = await self.pool.fetch('SELECT commands FROM guilds WHERE guild=$1', context.guild.id)
+            guild_commands = guild_commands[0].get('commands')
             is_disabled = self.disabled_command.get(command)
-            if is_disabled:
+            if is_disabled or command in guild_commands:
                 await context.send(
                     f"Command `{context.prefix}{context.command.name}` is currently disabled."
                 )
