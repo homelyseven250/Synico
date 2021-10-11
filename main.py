@@ -202,14 +202,15 @@ class Bot(commands.Bot):
         context = await self.get_context(message)
         if context.command:
             command = context.command.name
-            guild_commands = await self.pool.fetch('SELECT commands FROM guilds WHERE guild=$1', context.guild.id)
+            guild_commands = await self.pool.fetch('SELECT commands FROM guilds WHERE guild=$1', int(context.guild.id))
             guild_commands = guild_commands[0].get('commands')
             is_disabled = self.disabled_command.get(command)
-            if is_disabled or command in guild_commands:
-                await context.send(
-                    f"Command `{context.prefix}{context.command.name}` is currently disabled."
-                )
-                return
+            if guild_commands != None:
+                if is_disabled or command in guild_commands:
+                    await context.send(
+                        f"Command `{context.prefix}{context.command.name}` is currently disabled."
+                    )
+                    return
 
             return await super().process_commands(message)
 
@@ -228,7 +229,7 @@ class Bot(commands.Bot):
         the prefix assign to the :class:`discord.Guild`.
         """
         await self.pool.execute(
-            "INSERT INTO guilds (guild, prefix) VALUES ($1, $2) ON CONFLICT (guilds_pkey) DO NOTHING",
+            "INSERT INTO guilds (guild, prefix) VALUES ($1, $2) ON CONFLICT (guild) DO NOTHING",
             guild_id,
             self.user.mention,
         )

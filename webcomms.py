@@ -3,15 +3,15 @@ import asyncio
 from configparser import ConfigParser
 from postgre import Database
 from threading import Thread
+from discord import TextChannel, Embed
+from main import Bot
 
 config = ConfigParser()
 config.read("config.ini")
 
 
 class Comms():
-    def __init__(self, bot):
-
-        
+    def __init__(self, bot: Bot):
 
         # Init socket io
         sio = socketio.AsyncClient()
@@ -27,7 +27,10 @@ class Comms():
             if data['key'] == 'bot-prefix':
                 # Do stuff with data['value']
                 await self.pool.execute(
-                'UPDATE guilds SET prefix=$1 WHERE guild=$2', data['value'], int(data['guild_id']))
+                    "UPDATE guilds SET prefix = $1 WHERE guild = $2",
+                    data['value'],
+                    int(data['guild_id']),
+                )
                 bot.prefix.update({int(data['guild_id']): data['value']})
 
         @sio.on('getAllCommands')
@@ -80,10 +83,15 @@ class Comms():
         async def guildEnableCommand(data):
             guild_commands = await self.pool.fetch(
                 'SELECT commands FROM guilds WHERE guild=$1', int(data['guild_id']))
-            guild_commands = guild_commands[0].get('commands')
-            for command in data['commands']:
-                if command in guild_commands:
-                    guild_commands.remove(command)
+            if len(guild_commands) > 0:  
+                guild_commands = guild_commands[0].get('commands')
+            else:
+                await self.pool.execute('UPDATE guilds SET commands=$1 WHERE guild=$2', data['commands'], int(data['guild_id']))
+                return
+            if guild_commands != None:
+                for command in data['commands']:
+                    if command in guild_commands:
+                        guild_commands.remove(command)
             await self.pool.execute(
                 'UPDATE guilds SET commands=$1 WHERE guild=$2', guild_commands, int(data['guild_id']))
 
@@ -91,36 +99,50 @@ class Comms():
         async def guildDisableCommands(data):
             guild_commands = await self.pool.fetch(
                 'SELECT commands FROM guilds WHERE guild=$1', int(data['guild_id']))
-            guild_commands=guild_commands[0].get('commands')
-            for command in data['commands']:
-                if not command in guild_commands:
-                    guild_commands.append(command)
-            await self.pool.execute(
-                'UPDATE guilds SET commands=$1 WHERE guild=$2', guild_commands, int(data['guild_id']))
+            if len(guild_commands) > 0:  
+                guild_commands = guild_commands[0].get('commands')
+            else:
+                await self.pool.execute('UPDATE guilds SET commands=$1 WHERE guild=$2', data['commands'], int(data['guild_id']))
+                return
+
+            if guild_commands != None:
+                for command in data['commands']:
+                    if not command in guild_commands:
+                        guild_commands.append(command)
+                await self.pool.execute(
+                    'UPDATE guilds SET commands=$1 WHERE guild=$2', guild_commands, int(data['guild_id']))
+            else:
+                await self.pool.execute('UPDATE guilds SET commands=$1 WHERE guild=$2', data['commands'], int(data['guild_id']))
 
         @sio.on('getGuildDisabledCommands')
         async def getGuildDisabledCommands(data):
-            guild_commands= await self.pool.fetch(
+            guild_commands = await self.pool.fetch(
                 'SELECT commands FROM guilds WHERE guild=$1', int(data['guild_id']))
             await sio.emit('sendGuildDisabledCommands', {
-                     "sid": data["sid"], "disabledCommands": guild_commands[0].get('commands')})
+                "sid": data["sid"], "disabledCommands": guild_commands[0].get('commands')})
 
-
+        @sio.on('embed')
+        async def sendEmbed(data):
+            channel: TextChannel = bot.get_channel(int(data['embed-channel']))
+            embed: Embed = bot.embed(description=data['message-text'])
+            embed.set_thumbnail(url=data['thumbnail'])
+            asyncio.run_coroutine_threadsafe(channel.send(embed=embed), bot.loop)
+            
         async def connect():
             print("running connecting method")
-            await sio.connect(config['WEBSITE']['url'], auth = {
-                    "key": config['WEBSITE']['key']}, transports='websocket')
+            await sio.connect(config['WEBSITE']['url'], auth={
+                "key": config['WEBSITE']['key']}, transports='websocket')
             await sio.wait()
-        
+
         # Beginning here, this is minorly modified code from https://git.io/Jo29J
         def start_background_loop(loop: asyncio.AbstractEventLoop) -> None:
             asyncio.set_event_loop(loop)
             loop.run_forever()
-        
 
         self.loop = asyncio.new_event_loop()
         self.pool = Database(self.loop).pool
-        t = Thread(target=start_background_loop, args=(self.loop,), daemon=True)
+        t = Thread(target=start_background_loop,
+                   args=(self.loop,), daemon=True)
         t.start()
 
         task = asyncio.run_coroutine_threadsafe(connect(), self.loop)
