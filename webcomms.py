@@ -3,7 +3,7 @@ import asyncio
 from configparser import ConfigParser
 from postgre import Database
 from threading import Thread
-from discord import TextChannel, Embed
+from discord import TextChannel, Embed, Color
 from main import Bot
 
 config = ConfigParser()
@@ -124,8 +124,15 @@ class Comms():
         @sio.on('embed')
         async def sendEmbed(data):
             channel: TextChannel = bot.get_channel(int(data['embed-channel']))
-            embed: Embed = bot.embed(description=data['message-text'])
-            embed.set_thumbnail(url=data['thumbnail'])
+            embed: Embed = bot.embed(description=data['message-text'], color=int(data['message-color'][1::], 16))
+            if 'thumbnail' in data:
+                embed.set_thumbnail(url=data['thumbnail'])
+            if 'image' in data:
+                embed.set_image(url=data['image'])
+            if 'message-author' in data and 'authorIcon' in data:
+                embed.set_author(name=data['message-author'], url=data['message-author-url'], icon_url=data['authorIcon'])
+            elif 'message-author' in data:
+                embed.set_author(name=data['message-author'], url=data['message-author-url'])
             asyncio.run_coroutine_threadsafe(channel.send(embed=embed), bot.loop)
             
         async def connect():
