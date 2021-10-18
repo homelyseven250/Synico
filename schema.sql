@@ -19,20 +19,15 @@ SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
-CREATE TABLE public.blacklist (
-    guild bigint,
-    "user" bigint
-);
-
 CREATE TABLE public.guilds (
     guild bigint NOT NULL,
     prefix text,
-    log bigint,
+    logs bigint,
     timezone text,
     mute bigint,
-    admin bigint,
+    admins bigint,
     mod bigint,
-    "join" bigint,
+    joins bigint,
     leave bigint,
     welcome text,
     goodbye text,
@@ -42,64 +37,27 @@ CREATE TABLE public.guilds (
 
 CREATE TABLE public.mutes (
     guild bigint,
-    "user" bigint,
+    muted bigint,
     ends timestamp with time zone,
     starts timestamp with time zone,
     reason text
 );
 
-CREATE TABLE public.reminders (
-    guild bigint,
-    "user" bigint,
-    "end" timestamp with time zone,
-    reminder text,
-    channel bigint,
-    created timestamp with time zone,
-    reminds bigint
-);
 
 CREATE TABLE public.tags (
     guild bigint,
-    "user" bigint,
+    creator bigint,
     created timestamp with time zone,
     used bigint,
     content text,
     tag text
 );
 
-CREATE TABLE public.tempbans (
-    guild bigint,
-    "user" bigint,
-    "end" timestamp with time zone
-);
-
-CREATE TABLE public.twitch (
-    guild bigint,
-    channel bigint,
-    streamer text,
-    live boolean,
-    "message" text,
-    title text,
-    notified boolean
-);
-
-CREATE TABLE public.twitter (
-    guild bigint,
-    "user" bigint
-);
-
-
 CREATE TABLE public.warns (
     guild bigint,
-    "user" bigint,
+    warned bigint,
     author bigint,
     warn text,
     warned bigint,
     created timestamp with time zone
-);
-
-CREATE TABLE public.blacklist
-(
-    guild bigint,
-    "user" bigint
 );

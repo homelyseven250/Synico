@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
-from utils import RoleConverter, guild_bot_owner, guild_owner, is_admin
+from main import Bot
+
+from cogs.errors import guild_owner, is_admin
 
 
 class Settings(commands.Cog):
@@ -8,61 +10,65 @@ class Settings(commands.Cog):
     A module to allow configuring guild settings.
     """
 
-    def __init__(self, bot):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
-    @commands.command()
-    @guild_bot_owner()
-    async def prefix(self, context: commands.Context, *, prefix: str) -> None:
-        """
-        Update the guild's prefix.
-        """
-        if prefix != context.bot.prefix.get(context.guild.id, context.bot.prefix):
-            context.bot.prefix.update({context.guild.id: prefix})
-            await context.bot.pool.execute(
-                "UPDATE guilds SET prefix = $1 WHERE guild = $2",
-                prefix,
-                context.guild.id,
-            )
+    @commands.group(name="set")
+    async def _settings(self, context: commands.Context) -> None:
+        pass
 
-            escaped_prefix = discord.utils.escape_markdown(prefix)
-            await context.send(f"Prefix updated to {escaped_prefix}")
-
-    @commands.command()
+    @_settings.command()
     @guild_owner()
-    async def admin(self, context: commands.Context, *, role: RoleConverter) -> None:
+    async def admin(
+        self,
+        context: commands.Context,
+        role: discord.Role = commands.Option(
+            description="Role to give access to all moderation commands."
+        ),
+    ) -> None:
         """
         Update the guild's admin role.
         """
-        role: discord.Role = role
         await context.bot.pool.execute(
-            "UPDATE guilds SET admin = $1 WHERE guild = $2", role.id, context.guild.id
+            "UPDATE guilds SET admins = $1 WHERE guild = $2", role.id, context.guild.id
         )
         await context.send(
             f"{role.mention} has been set as the admin role and will be able to use all moderation commands.",
+            ephemeral=True,
         )
 
-    @commands.command()
+    @_settings.command()
     @guild_owner()
-    async def mod(self, context: commands.Context, *, role: RoleConverter) -> None:
+    async def mod(
+        self,
+        context: commands.Context,
+        role: discord.Role = commands.Option(
+            description="Role to give access to most moderation commands."
+        ),
+    ) -> None:
         """
         Update the guild's mod role.
         """
-        role: discord.Role = role
         await context.bot.pool.execute(
             "UPDATE guilds SET mod = $1 WHERE guild = $2", role.id, context.guild.id
         )
         await context.send(
-            f"{role.mention} has been set as the mod role and will be able to use most moderation commands."
+            f"{role.mention} has been set as the mod role and will be able to use most moderation commands.",
+            ephemeral=True,
         )
 
-    @commands.command()
+    @_settings.command()
     @is_admin()
-    async def muted(self, context: commands.Context, *, role: RoleConverter) -> None:
+    async def muted(
+        self,
+        context: commands.Context,
+        role: discord.Role = commands.Option(
+            description="Designated role given to members when muted."
+        ),
+    ) -> None:
         """
         Update the guild's muted role.
         """
-        role: discord.Role = role
         await context.bot.pool.execute(
             "UPDATE guilds SET mute = $1 WHERE guild = $2",
             role.id,
@@ -70,24 +76,30 @@ class Settings(commands.Cog):
         )
         context.bot.mute_role.update({context.guild.id: role.id})
         await context.send(
-            f"{role.mention} has been set as the muted role.",
+            f"{role.mention} has been set as the muted role.", ephemeral=True
         )
 
-    @commands.command()
+    @_settings.command()
     @is_admin()
     async def logs(
-        self, context: commands.Context, *, channel: discord.TextChannel = None
+        self,
+        context: commands.Context,
+        channel: discord.TextChannel = commands.Option(
+            None, description="Designated channel to log server events."
+        ),
     ):
         """
         Update the guild's logging channel.
         """
         channel: discord.TextChannel = channel or context.channel
         await context.bot.pool.execute(
-            "UPDATE guild SET logs = $1 WHERE guild_id = $2",
+            "UPDATE guilds SET logs = $1 WHERE guild = $2",
             channel.id,
             context.guild.id,
         )
-        await context.send(f"Events will now be logged in {channel.mention}")
+        await context.send(
+            f"Events will now be logged in {channel.mention}", ephemeral=True
+        )
 
 
 def setup(bot):

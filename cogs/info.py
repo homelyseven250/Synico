@@ -1,6 +1,11 @@
+from typing import List, Optional, Union
+
 import discord
 from discord.ext import commands
-from utils import Tags, UserConverter, start_menu, tag_perms
+from main import Bot
+from utils import Mutes, Tags, UserConverter, Warnings, start_menu
+
+from cogs.errors import is_mod, tag_perms
 
 
 class Info(commands.Cog):
@@ -9,33 +14,66 @@ class Info(commands.Cog):
     on users and servers with handy utilities.
     """
 
-    def __init__(self, bot):
+    def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
-    @commands.command(name="avatar", aliases=["avi", "av"])
+    @commands.group(name="profile")
+    async def user_info(self, context: commands.Context) -> None:
+        pass
+
+    @user_info.command(name="avatar")
     async def _avatar(
-        self, context: commands.Context, *, member: UserConverter = None
+        self,
+        context: commands.Context,
+        member: discord.Member = commands.Option(
+            None, description="Server member who's avatar to show."
+        ),
     ) -> None:
         """
-        Display a user's avatar.
+        Display a member's avatar.
         """
         member: discord.Member = member or context.author
         embed: discord.Embed = context.bot.embed(color=0x2ECC71)
-        embed.set_image(url=member.display_avatar)
+        embed.set_image(url=member.display_avatar.url)
         embed.set_footer(text=f"{member}'s Avatar")
         await context.send(embed=embed)
 
-    @commands.command(aliases=["ui", "userinfo"])
+    @user_info.command(name="banner")
+    async def banner(
+        self,
+        context: commands.Context,
+        member: discord.Member = commands.Option(
+            None, description="Server member who's banner to show."
+        ),
+    ) -> None:
+        """
+        Display a member's banner
+        """
+        member = member or context.author
+        user: discord.User = await UserConverter().convert(context, member.mention)
+        banner = user.banner
+        if not banner:
+            return await context.send(
+                f"{member} does not have a banner.", ephemeral=True
+            )
+
+        embed: discord.Embed = context.bot.embed(color=0x2ECC71)
+        embed.set_image(url=banner)
+        embed.set_footer(text=f"{member}'s Banner")
+        await context.send(embed=embed)
+
+    @user_info.command(name="info")
     async def whois(
         self,
         context: commands.Context,
-        *,
-        member: UserConverter = commands.Option(default=None, description="Member"),
+        member: discord.Member = commands.Option(
+            None, description="Server member who's info to show."
+        ),
     ) -> None:
         """
         Display information on a user.
         """
-        member: discord.Member = member or context.author
+        member = member or context.author
 
         created = discord.utils.format_dt(member.created_at)
         created_since = discord.utils.format_dt(member.created_at, "R")
@@ -61,7 +99,7 @@ class Info(commands.Cog):
 
         roles = ", ".join([role.mention for role in member.roles[1:43]])
 
-        embed: discord.Embed = self.bot.embed(
+        embed: discord.Embed = context.bot.embed(
             color=0x2ECC71,
             description=f"**Account Details**:\nJoined {context.guild} on {joined}\n({joined_since})\n\n \
             Registered Account on {created}\n({created_since})\n\n \
@@ -69,12 +107,12 @@ class Info(commands.Cog):
         )
 
         embed.add_field(name="Role(s)", value=roles[:1008] or "@everyone")
-        embed.set_author(name=member.__str__(), icon_url=member.avatar.url)
-        embed.set_thumbnail(url=member.avatar.url)
+        embed.set_author(name=str(member), icon_url=member.display_avatar.url)
+        embed.set_thumbnail(url=member.display_avatar.url)
 
         await context.send(embed=embed)
 
-    @commands.command(name="server-info", aliases=["server", "si", "gi"])
+    @commands.command(name="serverinfo")
     async def server_info(self, context: commands.Context) -> None:
         """
         Display information on the server.
@@ -112,9 +150,9 @@ class Info(commands.Cog):
         channels = len(guild.channels)
         categories = len(guild.categories)
 
-        embed: discord.Embed = self.bot.embed(
+        embed: discord.Embed = context.bot.embed(
             color=0x2ECC71,
-            description=f"Server created on {created} ({created_since}) located in the **{region}**\n\n \
+            description=f"Server created on {created} ({created_since}) located in **{region}**\n\n \
             **Total Members:** {members}\n\n \
             **Text Channels:** {text}\n**Voice Channels:** {voice}\n**Total Channels:** {channels}\n**Total Categories:** {categories}\n\n \
             **Animated Emojis:** {animated}\n**Static Emojis:** {static}\n**Total Emojis:** {emojis}\n\n \
@@ -122,185 +160,276 @@ class Info(commands.Cog):
             **Server Features:** {features or 'N/A'}",
         )
 
-        embed.set_author(name=guild.__str__(), icon_url=guild.icon.url)
+        embed.set_author(name=str(guild), icon_url=guild.icon.url)
         embed.set_thumbnail(url=guild.icon.url)
 
         await context.send(embed=embed)
 
-    @commands.command()
-    async def tags(self, context: commands.Context) -> None:
-        """
-        Show server-made tags.
-        """
-        tags = await context.bot.pool.fetch(
-            "SELECT * FROM tags WHERE guild = $1", context.guild.id
-        )
-        if tags:
-            await start_menu(context, Tags(tags))
+    @commands.group()
+    async def tag(self, context: commands.Context) -> None:
+        pass
 
-        else:
-            await context.send(f"No tags in {context.guild}")
-
-    @commands.group(invoke_without_command=True)
-    async def tag(self, context: commands.Context, *, tag: str) -> None:
+    @tag.command(name="name")
+    async def tag_name(
+        self,
+        context: commands.Context,
+        tag: str = commands.Option(description="Name of tag to search for."),
+    ) -> None:
         """
         Display a tag.
         """
-        _tag = await context.bot.pool.fetchval(
-            "SELECT content FROM tags WHERE guild = $1 AND tag = $2",
+        tag = tag.lower()
+        _tag: Optional[str] = await context.bot.pool.fetchval(
+            "SELECT content FROM tags WHERE guild = $1 AND tag_lower = $2",
             context.guild.id,
             tag,
         )
 
         if _tag:
-            count = (
+            count: int = (
                 await context.bot.pool.fetchval(
-                    "SELECT used FROM tags WHERE guild = $1 AND tag = $2",
+                    "SELECT used FROM tags WHERE guild = $1 AND tag_lower = $2",
                     context.guild.id,
                     tag,
                 )
                 or 0
             )
             await context.bot.pool.execute(
-                "UPDATE tags SET used = $1 WHERE guild = $2 AND tag = $3",
+                "UPDATE tags SET used = $1 WHERE guild = $2 AND tag_lower = $3",
                 count + 1,
                 context.guild.id,
                 tag,
             )
 
-            await context.send(content=_tag)
+            return await context.send(
+                content=_tag,
+                allowed_mentions=discord.AllowedMentions(
+                    everyone=False, users=False, roles=False, replied_user=True
+                ),
+            )
 
-        else:
-            await context.send("Could not find a tag with that name.")
+        await context.send("Could not find a tag with that name.", ephemeral=True)
 
-    @tag.command(name="add")
-    async def add_tag(
-        self, context: commands.Context, tag: str, *, content: str
+    @tag.command(name="create")
+    async def tag_create(
+        self,
+        context: commands.Context,
+        tag: str = commands.Option(
+            description="Name of tag. Can only be up to 1250 characters."
+        ),
+        content: str = commands.Option(
+            description="Contents of tag. Can only be up to 2500 characters"
+        ),
     ) -> None:
         """
         Create a tag.
         """
-        if len(tag) > 256:
-            await context.send(f"Tag name exceeded character limit. ({len(tag)}/256)")
-
-        elif len(content) > 1725:
+        if len(tag) > 1250:
             await context.send(
-                f"Tag content exceeded character limit. ({len(tag)}/1725)"
+                f"Tag name exceeded character limit. ({len(tag)}/1250)", ephemeral=True
+            )
+
+        elif len(content) > 2500:
+            await context.send(
+                f"Tag content exceeded character limit. ({len(tag)}/2500)",
+                ephemeral=True,
             )
 
         else:
-            _tag = await context.bot.pool.fetchval(
-                "SELECT tag FROM tags WHERE guild = $1 AND tag = $2",
+            _tag: Optional[str] = await context.bot.pool.fetchval(
+                "SELECT tag FROM tags WHERE guild = $1 AND tag_lower = $2",
                 context.guild.id,
-                tag,
+                tag.lower(),
             )
             if not _tag:
                 await context.bot.pool.execute(
-                    "INSERT INTO tags (guild, user, created, used, content, tag) VALUES ($1, $2, $3, $4, $5, $6)",
+                    "INSERT INTO tags VALUES ($1, $2, $3, $4, $5, $6, $7)",
                     context.guild.id,
                     context.author.id,
                     discord.utils.utcnow(),
                     0,
-                    content[:1725],
-                    tag[:256],
+                    content[:2500],
+                    tag[:1250],
+                    tag.lower()[:1250],
                 )
-                await context.send("Tag successfully created.")
+                return await context.send("Tag successfully created.", ephemeral=True)
 
-            else:
-                await context.send("Tag already exists.")
+            await context.send("Tag already exists.", ephemeral=True)
 
     @tag.command(name="info")
-    async def tag_info(self, context: commands.Context, *, tag: str) -> None:
+    async def tag_info(
+        self,
+        context: commands.Context,
+        tag: str = commands.Option(description="Name of tag to find info on."),
+    ) -> None:
         """
         Display info on a tag.
         """
-        _tag = await self.bot.pool.fetch(
-            "SELECT * FROM tags WHERE guild = $1 AND tag = $2",
+        _tag: Optional[List] = await self.bot.pool.fetch(
+            "SELECT * FROM tags WHERE guild = $1 AND tag_lower = $2",
             context.guild.id,
-            tag,
+            tag.lower(),
         )
         if _tag:
-            user = _tag[0][1]
-            owner = self.bot.cache["member"].get(user) or await context.bot.fetch_user(
-                user
+            _tag = _tag[0]
+            user = _tag["creator"]
+            name = _tag["tag"]
+            uses = _tag["used"]
+            date = _tag["created"]
+            contents = _tag["content"]
+
+            tag_owner: Union[discord.Member, str] = (
+                self.bot.cache["member"].get(user)
+                or await UserConverter.convert(user)
+                or user
             )
 
-            name = _tag[0][5]
-            uses = _tag[0][3]
-            date = _tag[0][2]
-
-            embed: discord.Embed = self.bot.embed(title=name[:256], color=0x2ECC71)
-            embed.set_author(name=str(owner), icon_url=owner.avatar.url)
-            embed.set_footer(
-                text=f"Uses: {uses} | Created on {discord.utils.format_dt(date)}"
+            embed: discord.Embed = context.bot.embed(
+                title=name[:256],
+                description=f"{contents[:4000]}\n\n{discord.utils.format_dt(date)}",
+                color=0x2ECC71,
             )
-            await context.send(embed=embed)
+            embed.set_author(name=str(tag_owner), icon_url=tag_owner.display_avatar.url)
+            embed.set_footer(text=f"Uses: {uses}")
+            return await context.send(embed=embed, ephemeral=True)
 
-        else:
-            await context.send("Could not find a tag with that name.")
+        await context.send("Could not find a tag with that name.", ephemeral=True)
 
     @tag.command(name="delete")
-    async def delete_tag(self, context: commands.Context, *, tag: str) -> None:
+    async def tag_delete(
+        self,
+        context: commands.Context,
+        tag: str = commands.Option(description="Name of tag to delete."),
+    ) -> None:
         """
         Delete a server's tag.
         """
-        _tag = await self.bot.pool.fetch(
-            "SELECT * FROM tags WHERE guild = $1 AND tag = $2",
+        tag = tag.lower()
+        _tag: Optional[List] = await self.bot.pool.fetch(
+            "SELECT * FROM tags WHERE guild = $1 AND tag_lower = $2",
             context.guild.id,
             tag,
         )
         if _tag:
-
-            permission_check = tag_perms(context, _tag[1])
+            _tag = _tag[0]
+            permission_check = tag_perms(context, _tag["creator"])
             if permission_check:
                 await self.bot.pool.execute(
-                    "DELETE FROM tags WHERE guild = $1 AND tag = $2",
+                    "DELETE FROM tags WHERE guild = $1 AND tag_lower = $2",
                     context.guild.id,
                     tag,
                 )
-                await context.send("Tag has been deleted.")
+                await context.send("Tag has been deleted.", ephemeral=True)
                 return
 
-            await context.send("You are not allowed to delete this tag.")
+            await context.send(
+                "You are not allowed to delete this tag.", ephemeral=True
+            )
+            return
 
-        else:
-            await context.send("Could not find a tag with that name.")
+        await context.send("Could not find a tag with that name.", ephemeral=True)
 
     @tag.command(name="edit")
     async def edit_tag(
-        self, context: commands.Context, tag: str, *, content: str
+        self,
+        context: commands.Context,
+        tag: str = commands.Option(description="Name of tag to edit."),
+        content: str = commands.Option(description="Contents of tag to replace with."),
     ) -> None:
         """
         Edit the contents of a tag.
         """
-        if len(content) > 1725:
+        tag = tag.lower()
+        if len(content) > 2500:
             await context.send(
-                f"Tag content exceeded character limit. ({len(tag)}/1725)"
+                f"Tag content exceeded character limit. ({len(tag)}/2500)",
+                ephemeral=True,
             )
+            return
 
         _tag = await self.bot.pool.fetch(
-            "SELECT * FROM tags WHERE guild = $1 AND tag = $2",
+            "SELECT * FROM tags WHERE guild = $1 AND tag_lower = $2",
             context.guild.id,
             tag,
         )
         if _tag:
+            _tag = _tag[0]
 
-            permission_check = tag_perms(context, _tag[1])
+            permission_check = tag_perms(context, _tag["creator"])
             if permission_check:
                 await context.bot.pool.execute(
-                    "UPDATE tags SET content = $1 WHERE guild = $2 AND tag = $3",
+                    "UPDATE tags SET content = $1 WHERE guild = $2 AND tag_lower = $3",
                     content,
                     context.guild.id,
                     tag,
                 )
-                await context.send(content="Tag has been updated.")
+                await context.send(content="Tag has been updated.", ephemeral=True)
                 return
 
-            await context.send("You are not allowed to edit this tag.")
+            await context.send("You are not allowed to edit this tag.", ephemeral=True)
+            return
 
-        else:
-            await context.send("Could not find a tag with that name.")
+        await context.send("Could not find a tag with that name.", ephemeral=True)
+
+    @commands.group(name="show")
+    async def _show(self, context: commands.Context) -> None:
+        pass
+
+    @_show.command(name="tags")
+    async def show_tags(self, context: commands.Context) -> None:
+        """
+        Show server-made tags.
+        """
+        tags: Optional[List] = await context.bot.pool.fetch(
+            "SELECT * FROM tags WHERE guild = $1", context.guild.id
+        )
+        if tags:
+            await start_menu(context, Tags(tags))
+            return
+
+        await context.send(f"No tags created in {context.guild}", ephemeral=True)
+
+    @_show.command(name="warnings")
+    @is_mod()
+    async def show_warnings(
+        self,
+        context: commands.Context,
+        member: discord.Member = commands.Option(
+            None, description="Server member who's warnings to show."
+        ),
+    ) -> None:
+        """
+        Allows mods/admins/owners to view their own or others warnings.
+        """
+        member = member or context.author
+        warns: Optional[List] = await context.bot.pool.fetch(
+            "SELECT * FROM warns WHERE guild = $1 AND warned = $2 ORDER BY warned ASC;",
+            context.guild.id,
+            member.id,
+        )
+        if warns:
+            return await start_menu(context, Warnings(warns))
+
+        await context.send(
+            f"{member.mention} does not have any warnings.", ephemeral=True
+        )
+
+    @_show.command(name="mutes")
+    @is_mod()
+    async def mutes(self, context: commands.Context) -> None:
+        """
+        Allows mods/admins/owners to view currently
+        muted users and their mute duration.
+        """
+        mutes: Optional[List] = await context.bot.pool.fetch(
+            "SELECT * FROM mutes WHERE guild = $1", context.guild.id
+        )
+        if mutes:
+            await start_menu(context, Mutes(mutes))
+            return
+
+        await context.send(f"No users are muted in {context.guild}", ephemeral=True)
 
 
-def setup(bot):
+def setup(bot: Bot):
     bot.add_cog(Info(bot))

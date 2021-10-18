@@ -18,9 +18,7 @@ class Events(commands.Cog):
         self.logs = {}
         self.webhooks = {}
 
-        loop: asyncio.AbstractEventLoop = self.bot.loop
-
-        loop.create_task(self.__ainit__())
+        self.bot.loop.create_task(self.__ainit__())
 
     async def __ainit__(self) -> None:
         """
@@ -57,12 +55,14 @@ class Events(commands.Cog):
                     if webhook:
                         try:
                             await webhook.send(
-                                embeds=embeds, avatar_url=self.bot.user.avatar.url
+                                embeds=embeds,
+                                avatar_url=self.bot.user.display_avatar.url,
                             )
                         except discord.HTTPException:
                             for embed in embeds:
                                 await webhook.send(
-                                    embed=embed, avatar_url=self.bot.user.avatar.url
+                                    embed=embed,
+                                    avatar_url=self.bot.user.display_avatar.url,
                                 )
                                 await asyncio.sleep(1)
 
@@ -79,16 +79,18 @@ class Events(commands.Cog):
                 self.webhooks[channel.guild.id], session=self.bot.cs
             )
 
-        else:
+        try:
             webhooks = await channel.webhooks()
             if webhooks:
                 for webhook in webhooks:
                     if webhook.token:
                         return webhook
 
-                webhook = await channel.create_webhook(name="Synico")
-                self.webhooks[channel.guild.id] = webhook.url
-                return webhook
+            webhook = await channel.create_webhook(name="Synico")
+            self.webhooks[channel.guild.id] = webhook.url
+            return webhook
+        except (discord.Forbidden, discord.HTTPException):
+            pass
 
     async def log_channel(self, guild: int) -> Optional[discord.TextChannel]:
         """
@@ -99,7 +101,7 @@ class Events(commands.Cog):
         """
         if not self.logs.get(guild):
             channel: Optional[int] = await self.bot.pool.fetchval(
-                "SELECT log FROM guilds WHERE guild = $1", guild
+                "SELECT logs FROM guilds WHERE guild = $1", guild
             )
             if channel:
                 log_channel: discord.TextChannel = self.bot.get_channel(channel)
@@ -122,8 +124,8 @@ class Events(commands.Cog):
                 webhook = await self.prepare_webhook(channel)
 
                 embed: discord.Embed = self.bot.embed(
-                    description=f"**{message.author.mention} deleted a message in {message.channel.mention}:\
-                    \n\n{message.content}**",
+                    description=f"{message.author.mention} deleted a message in {message.channel.mention}:\
+                    \n\n{message.content}",
                     color=0xE74C3C,
                 )
                 embed.set_author(
@@ -155,8 +157,8 @@ class Events(commands.Cog):
                 guild: discord.Guild = self.bot.get_guild(payload.guild_id)
 
                 embed: discord.Embed = self.bot.embed(
-                    description=f"**{len(payload.cached_messages)} message(s) bulk deleted\
-                    in {guild.get_channel(payload.channel_id).mention}.**",
+                    description=f"{len(payload.cached_messages)} message(s) bulk deleted\
+                    in {guild.get_channel(payload.channel_id).mention}.",
                     color=0xE74C3C,
                 )
                 embed.set_author(name=str(guild), icon_url=guild.icon.url)
@@ -205,8 +207,8 @@ class Events(commands.Cog):
                         range(0, len(before.content), splice), start=1
                     ):
                         embed: discord.Embed = self.bot.embed(
-                            description=f"**{before.author.mention} edited a message in {before.channel.mention}:\
-                            \n\nOriginal ({index}/{int(total)}):\n{before.content[slice:slice + splice]}**",
+                            description=f"{before.author.mention} edited a message in {before.channel.mention}:\
+                            \n\nOriginal ({index}/{int(total)}):\n{before.content[slice:slice + splice]}",
                             color=0xE67E22,
                         )
                         embed.set_author(name=name, icon_url=avatar)
@@ -218,8 +220,8 @@ class Events(commands.Cog):
                         range(0, len(after.content), splice), start=1
                     ):
                         embed: discord.Embed = self.bot.embed(
-                            description=f"**{after.author.mention} edited a message in {after.channel.mention}:\
-                            \n\nEdited ({index}/{int(total)}):\n{after.content[slice:slice + splice]}**",
+                            description=f"{after.author.mention} edited a message in {after.channel.mention}:\
+                            \n\nEdited ({index}/{int(total)}):\n{after.content[slice:slice + splice]}",
                             color=0xE67E22,
                         )
                         embed.set_author(name=name, icon_url=avatar)
@@ -230,8 +232,8 @@ class Events(commands.Cog):
 
                 elif len(before.content + after.content) <= 4000:
                     embed: discord.Embed = self.bot.embed(
-                        description=f"**{before.author.mention} edited a message in {before.channel.mention}:\
-                        \n\nOriginal:\n{before.content}\n\nEdited:\n{after.content}**",
+                        description=f"{before.author.mention} edited a message in {before.channel.mention}:\
+                        \n\nOriginal:\n{before.content}\n\nEdited:\n{after.content}",
                         color=0xE67E22,
                     )
                     embed.set_author(name=name, icon_url=avatar)
@@ -257,7 +259,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(log_channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{str(channel.type).title()} channel `{channel.name}` has been created.**",
+                description=f"{str(channel.type).title()} channel `{channel.name}` has been created.",
                 color=0x2ECC71,
             )
             embed.set_author(name=f"{channel.guild}", icon_url=channel.guild.icon.url)
@@ -282,7 +284,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(log_channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{str(channel.type).title()} channel `{channel.name}` has been deleted.**",
+                description=f"{str(channel.type).title()} channel `{channel.name}` has been deleted.",
                 color=0xE74C3C,
             )
             embed.set_author(name=f"{channel.guild}", icon_url=channel.guild.icon.url)
@@ -390,8 +392,8 @@ class Events(commands.Cog):
                 )
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{str(after.type).title()} channel\
-                `{after.name}` has been updated.\n\n{changes}**",
+                description=f"{str(after.type).title()} channel\
+                `{after.name}` has been updated.\n\n{changes}",
                 color=0xE67E22,
             )
             embed.set_author(name=str(before.guild), icon_url=before.guild.icon.url)
@@ -422,13 +424,15 @@ class Events(commands.Cog):
         """
         An event called when a message was pinned/unpinned.
         """
+        print("called")
         log_channel = await self.log_channel(channel.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
+            print("webhook", webhook)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**Pinned message(s) in the {str(channel.type).title()} channel\
-                `{channel.name}` has been updated.**",
+                description=f"Pinned message(s) in the {str(channel.type).title()} channel\
+                `{channel.name}` has been updated.",
                 color=0xE67E22,
             )
             embed.set_author(name=f"{channel.guild}", icon_url=channel.guild.icon.url)
@@ -461,7 +465,7 @@ class Events(commands.Cog):
                 changes = "joined."
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{thread.mention} has been {changes}**", color=0x2ECC71
+                description=f"{thread.mention} has been {changes}", color=0x2ECC71
             )
             embed.set_author(name=f"{thread.guild}", icon_url=thread.guild.icon.url)
 
@@ -486,7 +490,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(log_channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{thread.name} was deleted.**", color=0x2ECC71
+                description=f"Thread #{thread.name} was deleted.", color=0x2ECC71
             )
             embed.set_author(name=f"{thread.guild}", icon_url=thread.guild.icon.url)
 
@@ -523,7 +527,7 @@ class Events(commands.Cog):
                 changes = f"Locked: {before.locked} -> {after.locked}"
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{after.mention} has been updated.\n\n{changes}**",
+                description=f"{after.mention} has been updated.\n\n{changes}",
                 color=0x2ECC71,
             )
             embed.set_author(name=f"{after.guild}", icon_url=after.guild.icon.url)
@@ -539,7 +543,7 @@ class Events(commands.Cog):
 
                 self.embeds[after.guild.id] = {"webhook": webhook, "embeds": [embed]}
 
-    # Deprecated due to changes in Discord API
+    # Requires member intents
     async def on_member_parsing(
         self, channel: discord.abc.GuildChannel, member: discord.Member, message: str
     ) -> str:
@@ -578,12 +582,12 @@ class Events(commands.Cog):
             user_created_at=member.created_at.strftime("%b. %d"),
         )
 
-    # Deprecated due to changes in Discord API
+    # Requires member intents
     async def member_channel(
         self, event: str, guild: discord.Guild, member: discord.Member
     ):
         # Optional[tuple[discord.TextChannel, str]] apparently raises an error?
-        # Will look into this soon
+        # Will look into this soon but works regardless
         """
         |coro|
 
@@ -592,7 +596,7 @@ class Events(commands.Cog):
         """
         if event == "join":
             join: List = await self.bot.pool.fetch(
-                "SELECT join, welcome FROM guilds WHERE guild = $1", guild.id
+                "SELECT joins, welcome FROM guilds WHERE guild = $1", guild.id
             )
             if join:
                 data: List = join[0]
@@ -619,7 +623,7 @@ class Events(commands.Cog):
         else:
             return None
 
-    # Deprecated due to changes in Discord API
+    # Requires member intents
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
         """
@@ -637,7 +641,7 @@ class Events(commands.Cog):
                 await channel.send(embed=embed)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{member} has joined {member.guild}**", color=0x2ECC71
+                description=f"{member} has joined {member.guild}", color=0x2ECC71
             )
             embed.set_author(name=str(member), icon_url=member.avatar.url)
 
@@ -651,7 +655,7 @@ class Events(commands.Cog):
 
             self.embeds[member.guild.id] = {"webhook": webhook, "embeds": [embed]}
 
-    # Deprecated due to changes in Discord API
+    # Requires member intents
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
         log_channel = await self.log_channel(member.guild.id)
@@ -666,7 +670,7 @@ class Events(commands.Cog):
                 await leave.send(embed=embed)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{member} has left {member.guild}**", color=0xE74C3C
+                description=f"{member} has left {member.guild}", color=0xE74C3C
             )
             embed.set_author(name=str(member), icon_url=member.avatar.url)
 
@@ -680,7 +684,7 @@ class Events(commands.Cog):
 
             self.embeds[member.guild.id] = {"webhook": webhook, "embeds": [embed]}
 
-    # Deprecated due to changes in Discord API
+    # Requires member intents
     @commands.Cog.listener()
     async def on_member_update(
         self, before: discord.Member, after: discord.Member
@@ -726,7 +730,7 @@ class Events(commands.Cog):
                 return
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{before.mention}'s profile updated:\n\n{changes}**",
+                description=f"{before.mention}'s profile updated:\n\n{changes}",
                 color=0xE67E22,
             )
             embed.set_author(name=f"{before}", icon_url=before.avatar.url)
@@ -741,7 +745,7 @@ class Events(commands.Cog):
 
             self.embeds[before.guild.id] = {"webhook": webhook, "embeds": [embed]}
 
-    # Deprecated due to changes in Discord API
+    # Requires presence intents
     @commands.Cog.listener()
     async def on_presence_update(
         self, before: discord.Member, after: discord.Member
@@ -815,7 +819,7 @@ class Events(commands.Cog):
                 return
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{before.mention}'s presence updated:\n\n{changes}**",
+                description=f"{before.mention}'s presence updated:\n\n{changes}",
                 color=0xE67E22,
             )
             embed.set_author(name=f"{before}", icon_url=before.avatar.url)
@@ -830,7 +834,7 @@ class Events(commands.Cog):
 
             self.embeds[before.guild.id] = {"webhook": webhook, "embeds": [embed]}
 
-    # Deprecated due to changes in Discord API
+    # Requires member intents
     @commands.Cog.listener()
     async def on_user_update(self, before: discord.User, after: discord.User) -> None:
         """
@@ -862,7 +866,7 @@ class Events(commands.Cog):
                                 return
 
                             embed: discord.Embed = self.bot.embed(
-                                description=f"**{guild.get_member(before.id).mention} updated their account.\n\n{changes}**",
+                                description=f"{guild.get_member(before.id).mention} updated their account.\n\n{changes}",
                                 color=0xE67E22,
                             )
                             embed.set_thumbnail(url=avatar)
@@ -943,7 +947,7 @@ class Events(commands.Cog):
                 changes = f"Verification: {before.verification_level} -> {after.verification_level}"
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**Changes were made to {after}\n\n{changes}**",
+                description=f"Changes were made to {after}\n\n{changes}",
                 color=0xE67E22,
             )
             embed.set_author(name=f"{after}", icon_url=after.icon.url)
@@ -970,7 +974,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**Role `{role.name}` has been created.**", color=0x2ECC71
+                description=f"Role `{role.name}` has been created.", color=0x2ECC71
             )
             embed.set_author(name=str(role.guild), icon_url=role.guild.icon.url)
 
@@ -994,7 +998,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**Role `{role.name}` has been deleted.**", color=0xE74C3C
+                description=f"Role `{role.name}` has been deleted.", color=0xE74C3C
             )
             embed.set_author(name=str(role.guild), icon_url=role.guild.icon.url)
 
@@ -1069,7 +1073,7 @@ class Events(commands.Cog):
                     changes = total
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**Changes were made to the role `{after.name}`\n\n{changes}**",
+                description=f"Changes were made to the role `{after.name}`\n\n{changes}",
                 color=0xE67E22,
             )
             embed.set_author(name=f"{after.guild}", icon_url=after.guild.icon.url)
@@ -1099,7 +1103,7 @@ class Events(commands.Cog):
                 webhook = await self.prepare_webhook(channel)
 
                 embed: discord.Embed = self.bot.embed(
-                    description=f"**{guild} emoji(s) have been updated.**",
+                    description=f"{guild} emoji(s) have been updated.",
                     color=0xE67E22,
                 )
                 embed.set_author(name=str(guild), icon_url=guild.icon.url)
@@ -1130,7 +1134,7 @@ class Events(commands.Cog):
                 webhook = await self.prepare_webhook(channel)
 
                 embed: discord.Embed = self.bot.embed(
-                    description=f"**{guild} sticker(s) have been updated.**",
+                    description=f"{guild} sticker(s) have been updated.",
                     color=0xE67E22,
                 )
                 embed.set_author(name=str(guild), icon_url=guild.icon.url)
@@ -1173,7 +1177,7 @@ class Events(commands.Cog):
                 )
                 color = 0xE74C3C if before_type.startswith("disconnected") else 0x2ECC71
                 embed: discord.Embed = self.bot.embed(
-                    description=f"**{member.mention} {before_type} {after_type}**",
+                    description=f"{member.mention} {before_type} {after_type}",
                     color=color,
                 )
 
@@ -1197,7 +1201,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**`{stage.channel.name}` has been created.**",
+                description=f"`{stage.channel.name}` has been created.",
                 color=0x2ECC71,
             )
 
@@ -1221,7 +1225,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**`{stage.channel.name}` has been deleted.**",
+                description=f"`{stage.channel.name}` has been deleted.",
                 color=0x2ECC71,
             )
 
@@ -1278,7 +1282,7 @@ class Events(commands.Cog):
                 changes = f"Discoverable: {before_discover} -> {after_discover}"
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**`{before.channel.name}` has been updated:\n\n{changes}**",
+                description=f"`{before.channel.name}` has been updated:\n\n{changes}",
                 color=0x2ECC71,
             )
 
@@ -1304,7 +1308,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{user} has been banned.**", color=0xE74C3C
+                description=f"{user} has been banned.", color=0xE74C3C
             )
 
             if self.embeds.get(guild.id, None):
@@ -1327,7 +1331,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**{user} has been unbanned.**", color=0x2ECC71
+                description=f"{user} has been unbanned.", color=0x2ECC71
             )
 
             if self.embeds.get(guild.id, None):
@@ -1372,7 +1376,7 @@ class Events(commands.Cog):
                 expires += f", invite will expire {expire[0]} and {expire[1]}"
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**An [invite]({invite.url}) link has been created by `{invite.inviter}` in channel `{invite.channel}`{expires}.**",
+                description=f"An [invite]({invite.url}) link has been created by `{invite.inviter}` in channel `{invite.channel}`{expires}.",
                 color=0x2ECC71,
             )
 
@@ -1396,7 +1400,7 @@ class Events(commands.Cog):
             webhook = await self.prepare_webhook(channel)
 
             embed: discord.Embed = self.bot.embed(
-                description=f"**An invite link created by `{invite.inviter}` from channel `{invite.channel}` has been deleted.**",
+                description=f"An invite link created by `{invite.inviter}` from channel `{invite.channel}` has been deleted.",
                 color=0xE74C3C,
             )
 
