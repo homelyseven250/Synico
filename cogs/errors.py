@@ -1,8 +1,140 @@
+import sys
+import traceback
 from datetime import datetime
+from typing import List, Union
 
 import discord
 from discord.ext import commands
-from utils import NotAdmin, NotGuildOwner, NotMod
+
+
+class NotMod(commands.CheckFailure):
+    pass
+
+
+class NotAdmin(commands.CheckFailure):
+    pass
+
+
+class NotGuildOwner(commands.CheckFailure):
+    pass
+
+
+def has_admin(context: commands.Context) -> bool:
+    """
+    Returns whether a user has administrative power.
+    """
+    permissions = [
+        k
+        for k, v in dict(
+            discord.Permissions(context.author.guild_permissions.value)
+        ).items()
+        if v
+    ]
+    if "administrator" in permissions:
+        return True
+
+    return False
+
+
+def guild_owner() -> commands.check:
+    """
+    A custom decorator that validates
+    whether a user is the server owner.
+    """
+
+    async def predicate(context: commands.Context) -> Union[bool, Exception]:
+        if context.author.id == context.guild.owner_id:
+            return True
+
+        raise NotGuildOwner()
+
+    return commands.check(predicate)
+
+
+def guild_bot_owner() -> commands.check:
+    """
+    A custom decorator that validates whether the user
+    is the server owner or bot owner.
+    """
+
+    async def predicate(context: commands.Context) -> Union[bool, Exception]:
+        if (
+            context.author.id in context.bot.owner_ids
+            or context.author.id == context.guild.owner_id
+        ):
+            return True
+
+        raise NotGuildOwner()
+
+    return commands.check(predicate)
+
+
+def is_admin() -> commands.check:
+    """
+    A custom decorator that validates
+    whether a user has higher level authorization.
+    """
+
+    async def predicate(context: commands.Context) -> Union[bool, Exception]:
+        if (
+            context.author.id == context.guild.owner_id
+            or context.guild.get_role(
+                context.bot.admins.get(context.guild.id).get("admin")
+            )
+            in context.author.roles
+            or has_admin(context)
+        ):
+            return True
+
+        raise NotAdmin()
+
+    return commands.check(predicate)
+
+
+def is_mod() -> commands.check:
+    """
+    A custom decorator that validates
+    whether a user has lower level authorization.
+    """
+
+    async def predicate(context: commands.Context) -> Union[bool, Exception]:
+        if (
+            context.author.id == context.guild.owner_id
+            or context.guild.get_role(
+                context.bot.admins.get(context.guild.id).get("mod")
+            )
+            in context.author.roles
+            or context.guild.get_role(
+                context.bot.admins.get(context.guild.id).get("admin")
+            )
+            in context.author.roles
+            or has_admin(context)
+        ):
+            return True
+
+        raise NotMod()
+
+    return commands.check(predicate)
+
+
+def tag_perms(context: commands.Context, owner: int) -> bool:
+    """
+    This method validates permission of command author when
+    editing/deleting tags.
+    """
+    if (
+        context.author.id == context.guild.owner_id
+        or context.guild.get_role(context.bot.admins.get(context.guild.id).get("mod"))
+        in context.author.roles
+        or context.guild.get_role(context.bot.admins.get(context.guild.id).get("admin"))
+        in context.author.roles
+        or has_admin(context)
+        or context.author.id == owner.id
+    ):
+
+        return True
+
+    return False
 
 
 class Errors(commands.Cog):
@@ -23,7 +155,7 @@ class Errors(commands.Cog):
         A method to escape markdown within a string
         before sending error output.
         """
-        formatted = discord.utils.escape_markdown(error)
+        formatted = discord.utils.escape_markdown(str(error))
         await context.send(content=f"**⚠️ | {formatted}**", ephemeral=True)
 
     @commands.Cog.listener()
@@ -43,8 +175,8 @@ class Errors(commands.Cog):
         error = getattr(error, "original", error)
 
         if isinstance(error, commands.ConversionError):
-            await context.send(
-                f"Conversion failed in [{error.converter}]: {error.__cause__}"
+            await self.format_error(
+                context, f"Conversion failed in [{error.converter}]: {error.__cause__}"
             )
 
         elif isinstance(error, commands.MissingRequiredArgument):
@@ -170,26 +302,27 @@ class Errors(commands.Cog):
             return
 
         elif isinstance(error, commands.MissingPermissions):
-            await context.send(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.BotMissingPermissions):
-            await context.send(context.me.mention + error.args[0][3:])
+            await self.format_error(context, context.me.mention + error.args[0][3:])
 
         elif isinstance(error, commands.MissingRole):
-            await context.send(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.BotMissingRole):
-            await context.send(context.me.mention + error[3:])
+            await self.format_error(context, context.me.mention + error[3:])
 
         elif isinstance(error, commands.MissingAnyRole):
-            await context.send(error)
+            await self.format_error(context, error)
 
         elif isinstance(error, commands.BotMissingAnyRole):
-            await context.send(context.me.mention + error[3:])
+            await self.format_error(context, context.me.mention + error[3:])
 
         elif isinstance(error, commands.NSFWChannelRequired):
-            await context.send(
-                f"{context.channel} needs to be NSFW to run {context.prefix}{context.invoked_with}"
+            await self.format_error(
+                context,
+                f"{context.channel} needs to be NSFW to run {context.prefix}{context.invoked_with}",
             )
 
         elif isinstance(error, commands.DisabledCommand):
@@ -199,32 +332,48 @@ class Errors(commands.Cog):
             duration = discord.utils.format_dt(
                 datetime.fromtimestamp(error.retry_after).timestamp, "R"
             )
-            await context.send(
-                f"{context.prefix}{context.invoked_with} is on cooldown. Try again in {duration}."
+            await self.format_error(
+                context,
+                f"{context.prefix}{context.invoked_with} is on cooldown. Try again in {duration}.",
             )
 
         elif isinstance(error, commands.MaxConcurrencyReached):
-            await context.send(
-                f"{context.prefix}{context.invoked_with} can be used {error.args[0][56:-14].replace('guild', 'server')}."
+            await self.format_error(
+                context,
+                f"{context.prefix}{context.invoked_with} can be used {error.args[0][56:-14].replace('guild', 'server')}.",
             )
 
         elif isinstance(error, NotMod):
-            await context.send(
-                f"Only moderators can use the command {context.prefix}{context.invoked_with}"
+            await self.format_error(
+                context,
+                f"Only mods can use the command {context.prefix}{context.invoked_with}",
             )
 
         elif isinstance(error, NotAdmin):
-            await context.send(
-                f"Only admins can use the command {context.prefix}{context.invoked_with}"
+            await self.format_error(
+                context,
+                f"Only admins can use the command {context.prefix}{context.invoked_with}",
             )
 
         elif isinstance(error, NotGuildOwner):
-            await context.send(
-                f"Only the owner of {context.guild} can use the command {context.prefix}{context.invoked_with}"
+            await self.format_error(
+                context,
+                f"Only the owner of {context.guild} can use the command {context.prefix}{context.invoked_with}",
             )
 
         else:
-            print(f"Unhandled exception in command [{context.command}]:", error)
+            unhandled_error: List[str] = traceback.format_exception(
+                type(error), error, error.__traceback__, file=sys.stderr
+            )
+            channel: discord.TextChannel = await context.bot.get_channel(
+                899515548222754908
+            )
+            embed = context.bot.embed(
+                title=f"Unhandled exception in command [{context.command}]:",
+                description="".join(unhandled_error),
+                color=0x2ECC71,
+            )
+            await channel.send(embed=embed)
 
 
 def setup(bot):
