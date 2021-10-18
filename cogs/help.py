@@ -3,6 +3,57 @@ from typing import List, Mapping, Optional
 import discord
 from discord.ext import commands
 
+from main import Bot
+
+
+class Dropdown(discord.ui.Select):
+    def __init__(
+        self,
+        ctx: commands.Context,
+        cogs: Mapping[Optional[commands.Cog], List[commands.Command]],
+    ) -> None:
+        self.ctx = ctx
+        self.cogs = cogs
+
+        options = [
+            discord.SelectOption(
+                label=cog.qualified_name,
+                description=f"Commands within the {cog.qualified_name} module.",
+            )
+            for cog in self.cogs
+            if cog
+            and len(cog.get_commands()) > 1
+            and not cog.qualified_name == "Developer"
+        ]
+
+        super().__init__(
+            placeholder="Choose a module...",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        choice = self.values[0]
+        response = await self.ctx.bot.help_command.command_callback(
+            self.ctx, command=choice
+        )
+        await interaction.response.edit_message(embed=response)
+
+
+class DropdownView(discord.ui.View):
+    def __init__(
+        self,
+        ctx: commands.Context,
+        cogs: Mapping[Optional[commands.Cog], List[commands.Command]],
+    ) -> None:
+        super().__init__()
+
+        self.ctx = ctx
+        self.cogs = cogs
+
+        self.add_item(Dropdown(ctx, cogs))
+
 
 class HelpCommand(commands.HelpCommand):
     """
@@ -17,16 +68,33 @@ class HelpCommand(commands.HelpCommand):
 
         This method is called when the help command is called with no arguments.
         """
-        embed: discord.Embed = self.context.bot.embed(color=0x006CCB)
+        embed: discord.Embed = self.context.bot.embed(
+            color=0x006CCB,
+            description="```\nWelcome to the Synico help main menu!\n\nUse the dropdown below to view \
+                all commands available within a module\nUse /help (command) for more info on command \
+                usage.\n\nThank you for using Synico!\n```",
+        )
         for cog, commands in mapping.items():
-            if cog and len(commands) >= 1:
+            if (
+                cog
+                and len(commands) >= 1
+                and not cog.qualified_name in ("Developer", "Jishaku")
+            ):
+                all_commands = [cmd for cmd in cog.walk_commands() if cmd.short_doc]
                 embed.add_field(
-                    name=cog.qualified_name.title(),
-                    value=f"**({len(commands)}) commands**",
+                    name=f"({len(all_commands)}) {cog.qualified_name.title()} commands",
+                    value=", ".join([f"/{cmd}" for cmd in all_commands[:10]])
+                    + f" {'and more...' if len(all_commands) > 10 else ''}",
                 )
 
+        embed.set_author(
+            name="Join the support server!", url="https://discord.gg/Xh9Whbrqbj"
+        )
+        embed.set_footer(text=f"Type /help (command) for more info on a command.")
         embed.set_thumbnail(url=self.context.me.display_avatar.url)
-        await self.context.send(embed=embed)
+
+        view = DropdownView(self.context, mapping)
+        await self.context.send(embed=embed, view=view, ephemeral=True)
 
     async def send_cog_help(self, cog: commands.Cog) -> None:
         """
@@ -34,28 +102,29 @@ class HelpCommand(commands.HelpCommand):
 
         This method is called when the help command is called with a cog as the argument.
         """
+
         commands = (
             "\n".join(
                 [
-                    f"{index}. {self.context.prefix}{command.name.title()}{f' - {command.short_doc}' if len(command.short_doc) > 1 else ''}\n"
-                    for index, command in enumerate(cog.get_commands(), start=1)
+                    f"{index}. **/{f'{command.parent} '.title() if command.parents else ''}{command.name.title()}** - {command.short_doc}\n"
+                    for index, command in enumerate(cog.walk_commands(), start=1)
+                    if command.short_doc
                 ]
             )
-            or "None"
+            or None
         )
 
-        embed: discord.Embed = self.context.bot.embed(
+        embed: discord.Embed = discord.Embed(
             title=cog.qualified_name.title(),
-            description=f"{cog.description}\n\n```{commands}\n```",
+            description=f"{cog.description}\n\n{commands}\n",
             colour=0x006CCB,
         )
 
-        embed.set_thumbnail(url=self.context.me.display_avatar.url)
-        embed.set_footer(
-            text=f"Type {self.context.prefix}help (command) for more info on a command."
+        embed.set_thumbnail(
+            url="https://cdn.discordapp.com/avatars/845025665325465630/749e9e8e466140dd7df45782bc7f582e.png"
         )
-
-        await self.context.send(embed=embed)
+        embed.set_footer(text=f"Type /help (command) for more info on a command.")
+        return embed
 
     async def send_group_help(self, group: commands.Group) -> None:
         """
@@ -66,26 +135,23 @@ class HelpCommand(commands.HelpCommand):
         commands = (
             "\n".join(
                 [
-                    f"{index}. {self.context.prefix}{command}{f' - {command.short_doc}' if len(command.short_doc) > 1 else ''}\n"
+                    f"{index}. /{command}{f' - {command.short_doc}' if len(command.short_doc) > 1 else ''}\n"
                     for index, command in enumerate(group.commands, start=1)
                 ]
             )
-            or "None"
+            or None
         )
 
         embed: discord.Embed = self.context.bot.embed(
             title=f"Parent Command `{group.name}`",
-            description=f"```Usage: {self.context.prefix}{group.name} {group.signature}\n\n{commands}```"
-            or "No info available.```",
+            description=f"Usage: /{group.name} {group.signature}\n\n{commands}"
+            or "No info available.",
             colour=0x006CCB,
         )
 
         embed.set_thumbnail(url=self.context.me.display_avatar.url)
-        embed.set_footer(
-            text=f"Type {self.context.prefix}help (command) for more info on a command."
-        )
-
-        await self.context.send(embed=embed)
+        embed.set_footer(text=f"Type /help (command) for more info on a command.")
+        await self.context.send(embed=embed, ephemeral=True)
 
     async def send_command_help(self, command: commands.Command) -> None:
         """
@@ -93,7 +159,7 @@ class HelpCommand(commands.HelpCommand):
 
         This method is called when the help command is called with a command name as the argument.
         """
-        aliases = f"Aliase(s): {' • '.join(command.aliases) or 'None'}\n\n"
+        aliases = f"Aliase(s): {' • '.join(command.aliases) or None}\n\n"
 
         parents = (
             "".join([f" {parent} " for parent in command.parents])
@@ -101,18 +167,16 @@ class HelpCommand(commands.HelpCommand):
             else ""
         )
 
-        usage = (
-            f"Usage: {self.context.prefix}{parents}{command.name} {command.signature}"
-        )
+        usage = f"Usage: /{parents[1:]}{command.name} {command.signature}"
 
         embed: discord.Embed = self.context.bot.embed(
             title=f"Command `{command.name}` info",
-            description=f"```{command.short_doc}\n\n{usage}\n\n{aliases}```",
+            description=f"{command.short_doc}\n\n{usage}\n\n{aliases}",
             colour=0x006CCB,
         )
 
         embed.set_thumbnail(url=self.context.me.display_avatar.url)
-        await self.context.send(embed=embed)
+        await self.context.send(embed=embed, ephemeral=True)
 
 
 class Help(commands.Cog):
@@ -121,7 +185,7 @@ class Help(commands.Cog):
     information on the bot.
     """
 
-    def __init__(self, bot) -> None:
+    def __init__(self, bot: Bot) -> None:
         self.bot = bot
         self.bot.help_command = HelpCommand(
             command_attrs={"help": "Shows available commands"}
@@ -142,9 +206,9 @@ class Help(commands.Cog):
         """
         Invite links to invite me to your server.
         """
-        admin_invite: str = "https://discord.com/api/oauth2/authorize?client_id=845025665325465630&permissions=8&scope=bot%20applications.commands"
-        normal_invite: str = "https://discord.com/api/oauth2/authorize?client_id=845025665325465630&permissions=17883851846&scope=bot%20applications.commands"
-        no_perms_invite: str = "https://discord.com/api/oauth2/authorize?client_id=845025665325465630&permissions=0&scope=bot%20applications.commands"
+        admin_invite: str = f"https://discord.com/api/oauth2/authorize?client_id={context.me.id}&permissions=8&scope=bot%20applications.commands"
+        normal_invite: str = f"https://discord.com/api/oauth2/authorize?client_id={context.me.id}&permissions=398324002038&scope=bot%20applications.commands"
+        no_perms_invite: str = f"https://discord.com/api/oauth2/authorize?client_id={context.me.id}&permissions=0&scope=bot%20applications.commands"
 
         embed: discord.Embed = context.bot.embed(
             title="Want to invite me to your server?",
@@ -152,29 +216,7 @@ class Help(commands.Cog):
             color=0x006CCB,
         )
 
-        await context.send(embed=embed)
-
-    @commands.command()
-    async def ping(self, context: commands.Context) -> None:
-        """
-        Shows current ping.
-        """
-        embed: discord.Embed = self.bot.embed(
-            description=f"**My ping is {round(self.bot.latency * 1000)}ms.**",
-            color=0x2ECC71,
-        )
-        await context.send(embed=embed)
-
-    @commands.command()
-    async def uptime(self, context: commands.Context) -> None:
-        """
-        Shows how long I've been online.
-        """
-        time = discord.utils.format_dt(context.bot.uptime, "R")
-        embed: discord.Embed = self.bot.embed(
-            description=f"**Online since {time}.**", color=0x2ECC71
-        )
-        await context.send(embed=embed)
+        await context.send(embed=embed, ephemeral=True)
 
     @commands.command()
     async def support(self, context: commands.Context) -> None:
@@ -185,8 +227,40 @@ class Help(commands.Cog):
             description=f"[Support Server](https://discord.gg/Xh9Whbrqbj)",
             color=0x2ECC71,
         )
-        await context.send(embed=embed)
+        await context.send(embed=embed, ephemeral=True)
+
+    @commands.command()
+    @commands.cooldown(1, 15, commands.BucketType.member)
+    async def suggest(
+        self,
+        context: commands.Context,
+        suggestion: str = commands.Option(description="A suggestion for the bot."),
+    ):
+        """
+        Make a suggestion or report a bug to the developers.
+        """
+        embed: discord.Embed = context.bot.embed(
+            title=f"Suggestion from {context.author}!",
+            description=suggestion,
+            color=0x2ECC71,
+            timestamp=discord.utils.utcnow(),
+        )
+        embed.set_author(
+            name=str(context.author), icon_url=context.author.display_avatar.url
+        )
+        channel: discord.TextChannel = context.bot.get_channel(858760527827042317)
+
+        try:
+            await channel.send(
+                ", ".join([f"<@{_id}>" for _id in context.bot.owner_ids]),
+                embed=embed,
+            )
+            await context.send("Suggestion submitted.", ephemeral=True)
+        except (discord.HTTPException, discord.Forbidden, AttributeError):
+            await context.send(
+                "Suggestion failed. Please try again later.", ephemeral=True
+            )
 
 
-def setup(bot):
+def setup(bot: Bot):
     bot.add_cog(Help(bot))
