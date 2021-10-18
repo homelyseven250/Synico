@@ -1,171 +1,46 @@
-import inspect
-import os
-from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Union
+import contextlib
+import random
+import re
+import uuid
+from typing import List, Optional, Union
 
 import discord
 from discord.ext import commands, menus
 
-
-class NotMod(commands.CheckFailure):
-    pass
+from helpers import ViewMenuPages
 
 
-class NotAdmin(commands.CheckFailure):
-    pass
+async def generate_uuid(context: commands.Context) -> int:
+    _id = [str(uuid.uuid4()) for _ in range(random.randint(6, 12))]
+    new_id = []
+    for _uuid in reversed(_id):
+        for _ in range(len(_uuid)):
+            if len(new_id) == 6:
+                generated = int("".join([str(num) for num in new_id]))
+                run_again = await check_uuid(context, generated)
+                if run_again:
+                    await generate_uuid(context)
+                else:
+                    return generated
+
+            try:
+                _int = int(random.choice(_uuid))
+                new_id.append(_int)
+                new_id.reverse()
+            except ValueError:
+                continue
 
 
-class NotGuildOwner(commands.CheckFailure):
-    pass
+async def check_uuid(
+    context: commands.Context, _id: int
+) -> Optional[Union[list, None]]:
+    exists = await context.bot.pool.fetch(
+        "SELECT * FROM warns WHERE warning_id = $1", _id
+    )
+    return exists
 
 
-class UserConverter(commands.Converter):
-    """
-    Attemps to return a Member or User object through
-    local and/or global lookups.
-    """
-
-    async def convert(self, context: commands.Context, argument: str):
-        cache: dict = context.bot.cache["member"]
-
-        try:
-            member = await commands.MemberConverter().convert(context, argument)
-            cache.update({member.id: member})
-            return member
-        except commands.MemberNotFound:
-            pass
-
-        try:
-            user = await commands.UserConverter().convert(context, argument)
-            cache.update({user.id: user})
-            return user
-        except commands.UserNotFound:
-            pass
-
-        try:
-            user_id = int(argument)
-            member = await context.guild.fetch_member(user_id)
-            cache.update({member.id: member})
-            return member
-        except commands.MemberNotFound:
-            pass
-
-        return discord.Object(int(argument))
-
-
-class RoleConverter(commands.Converter):
-    """
-    Attempts to find a guild role case-insensitively.
-    """
-
-    async def convert(self, context: commands.Context, argument: str):
-        try:
-            return await commands.RoleConverter().convert(context, argument)
-        except commands.RoleNotFound:
-
-            def check(role: discord.Role):
-                return (
-                    role.name.lower() == argument.lower()
-                    or str(role).lower() == argument.lower()
-                    or str(role.id) == argument
-                )
-
-            found: discord.Role = discord.utils.find(check, context.guild.roles)
-            if found:
-                return found
-
-
-class SourceReader(commands.Converter):
-    """
-    Retrieves the source information within a specific
-    segment of code or an entire file.
-    """
-
-    async def convert(
-        self, context: commands.Context, argument: str
-    ) -> Union[str, discord.Embed, dict]:
-        cmd: Optional[commands.Command] = await self.find_command(context, argument)
-        if not cmd:
-            if argument == "config.ini":
-                raise commands.BadArgument("Not accessible.")
-
-            with ThreadPoolExecutor() as pool:
-                file: str = await context.bot.loop.run_in_executor(
-                    pool, self.file_search, argument
-                )
-                if not file:
-                    raise commands.BadArgument(
-                        f"Could not find a file named **{argument}**"
-                    )
-
-                result: commands.Paginator = await context.bot.loop.run_in_executor(
-                    pool, self.file_copy, file
-                )
-
-            page_source: Union[str, discord.Embed, dict] = StringPagination(
-                result.pages
-            )
-            return page_source
-
-        with ThreadPoolExecutor() as pool:
-            result: commands.Paginator = await context.bot.loop.run_in_executor(
-                pool, self.cmd_copy, cmd
-            )
-
-        page_source: Union[str, discord.Embed, dict] = StringPagination(result.pages)
-        return page_source
-
-    async def find_command(
-        self, context: commands.Context, argument: str
-    ) -> Union[commands.Command, bool]:
-        """
-        |coro|
-
-        Method attempts to determine whether user input is for a command
-        or for a file.
-        """
-        command: Optional[commands.Command] = context.bot.get_command(argument)
-        if not command:
-            return False
-
-        return command
-
-    def cmd_copy(self, cmd: commands.Command) -> commands.Paginator:
-        """
-        Returns a pagination class containing the source
-        lines of a specific segment of code.
-        """
-        source_code, _ = inspect.getsourcelines(cmd.callback)
-        page = commands.Paginator(prefix="```py\n", linesep="", max_size=1998)
-        for line in source_code:
-            page.add_line(line)
-
-        return page
-
-    def file_copy(self, file: str) -> commands.Paginator:
-        """
-        Creates a pagination class containing the source lines
-        of a file.
-        """
-        page = commands.Paginator(prefix="```py\n", linesep="", max_size=1998)
-        with open(file, "r", encoding="utf-8") as source:
-            lines = source.readlines()
-            for line in lines:
-                page.add_line(line)
-
-        return page
-
-    def file_search(self, file: str = None) -> Optional[str]:
-        """
-        Returns absolute path to file being searched for.
-        """
-        if file:
-            for dirpath, _, filename in os.walk(os.path.abspath(".")):
-                for files in filename:
-                    if file in files:
-                        return f"{dirpath}{os.path.sep}{files}"
-
-        return None
+### Menus
 
 
 async def start_menu(
@@ -178,46 +53,9 @@ async def start_menu(
 
     Method initiates menu instance.
     """
-    menu = menus.MenuPages(source=source, delete_message_after=delete_message_after)
-    return await menu.start(context)
-
-
-class StringPagination(menus.ListPageSource):
-    """
-    Returns a paginated string to allow for basic
-    codeblock use without embedding.
-    """
-
-    def __init__(self, data: list) -> None:
-        super().__init__(data, per_page=1)
-
-    async def format_page(
-        self, menu: menus.MenuPages, entries: list
-    ) -> Union[str, discord.Embed, dict]:
-        return entries + f"\n\nPage {menu.current_page + 1}/{self.get_max_pages()}"
-
-
-class AllCommands(menus.ListPageSource):
-    """
-    Returns a paginated embed displaying all
-    commands and whether they're enabled/disabled.
-    """
-
-    def __init__(self, data: list) -> None:
-        super().__init__(data, per_page=10)
-
-    async def format_page(
-        self, menu: menus.MenuPages, entries: list
-    ) -> Union[str, discord.Embed, dict]:
-        embed = discord.Embed(
-            description="\n".join(
-                f"{index}. {entrie[0]} command is {'not' if entrie[1] else ''} disabled"
-                for index, entrie in enumerate(entries, start=1)
-            ),
-            color=0x2ECC71,
-        )
-        embed.set_footer(text=f"Page {menu.current_page + 1}/{self.get_max_pages()}")
-        return embed
+    menu = ViewMenuPages(source=source, delete_message_after=delete_message_after)
+    with contextlib.suppress(AttributeError):
+        return await menu.start(context)
 
 
 class Tags(menus.ListPageSource):
@@ -232,9 +70,13 @@ class Tags(menus.ListPageSource):
     async def format_page(
         self, menu: menus.MenuPages, entries: list
     ) -> Union[str, discord.Embed, dict]:
-        embed = discord.Embed(
+
+        embed: discord.Embed = menu.ctx.bot.embed(
             description="\n".join(
-                [f"{index}. {tag[5]}" for index, tag in enumerate(entries, start=1)]
+                [
+                    f"{index}. {entry['tag']} - {entry['creator']}"
+                    for index, entry in enumerate(entries, start=1)
+                ]
             ),
             color=0x2ECC71,
         )
@@ -250,18 +92,18 @@ class Mutes(menus.ListPageSource):
     """
 
     def __init__(self, data: list) -> None:
-        super().__init__(data, per_page=1)
+        super().__init__(data, per_page=5)
 
     async def format_page(
         self, menu: menus.MenuPages, entries: list
     ) -> Union[str, discord.Embed, dict]:
-        remaining = discord.utils.format_dt(entries[2], "R")
-        issued = discord.utils.format_dt(entries[3])
 
-        embed = discord.Embed(
-            description=f"**<@{entries[1]}> was muted for {entries[4]} on {issued} and will be unmuted in {remaining}.**",
+        embed: discord.Embed = menu.ctx.bot.embed(
+            description=f"""<@{entries['muted']}> was muted {'' if not entries['reason'] else f'for {entries["reason"][:512]}'} on {discord.utils.format_dt(entries['starts'])}. 
+            {f'Ends {discord.utils.format_dt(entries["ends"], "R")}' if entries['ends'] else ''}\n\n""",
             color=0xE67E22,
         )
+        embed.set_author(name=str(menu.ctx.guild), icon_url=menu.ctx.guild.icon.url)
         embed.set_footer(text=f"Page {menu.current_page + 1}/{self.get_max_pages()}")
         return embed
 
@@ -279,155 +121,193 @@ class Warnings(menus.ListPageSource):
         self, menu: menus.MenuPages, entries: list
     ) -> Union[str, discord.Embed, dict]:
 
-        embed = discord.Embed(
-            title=f"Warning {menu.current_page + 1}/{self.get_max_pages()}",
-            description=f"**<@{entries[2]}> issued a warning to <@{entries[0]}> on {discord.utils.format_dt(entries[5])}.\n\nReason: {entries[1]}**",
+        embed: discord.Embed = menu.ctx.bot.embed(
+            description=f"<@{entries['author']}> gave a warning to <@{entries['warned']}> on {discord.utils.format_dt(entries['created'])}.\n\n{entries['warn'][:3900]}",
             color=0xE67E22,
         )
-        embed.set_footer(text=f"User ID: {entries[0]} | Warn ID #{entries[4]}")
-        return embed
-
-
-class Streamers(menus.ListPageSource):
-    """
-    Returns a pagination of embeds containing information
-    relating to followed Twitch streamers in a guild.
-    """
-
-    def __init__(self, data: list) -> None:
-        super().__init__(data, per_page=15)
-
-    async def format_page(
-        self, menu: menus.MenuPages, entries: list
-    ) -> Union[str, discord.Embed, dict]:
-
-        embed = discord.Embed(
-            title=f"Following {len(entries)} Twitch channels",
-            description="\n".join(
-                [
-                    f"**{index}. [{streamer[0]}](https://www.twitch.tv/{streamer[0]})**"
-                    for index, streamer in enumerate(entries, start=1)
-                ]
-            ),
-            color=0x2ECC71,
+        embed.set_author(name=str(menu.ctx.guild), icon_url=menu.ctx.guild.icon.url)
+        embed.set_footer(
+            text=f"User ID: {entries['warned']} | Warn ID #{entries['warning_id']} | Warning {menu.current_page + 1}/{self.get_max_pages()}"
         )
-        embed.set_footer(text=f"Page {menu.current_page + 1}/{self.get_max_pages()}")
         return embed
 
 
-def has_admin(context: commands.Context) -> bool:
+### Converters
+
+
+time_regex = re.compile(r"(\d{1,6}(?:[.,]?\d{1,6})?)([smhdwy])")
+month_regex = re.compile(
+    r"(\d{1,6}(?:[.,]?\d{1,6})?)(\W*((?:)mo|months|month(U?-:))\W*)"
+)
+
+time_dict = {
+    "hours": 3600,
+    "hour": 3600,
+    "h": 3600,
+    "minutes": 60,
+    "minute": 60,
+    "m": 60,
+    "seconds": 1,
+    "second": 1,
+    "s": 1,
+}
+
+month_dict = {"months": 2628288, "month": 2628288, "mo": 2628288}
+
+
+class SlowmodeConverter(commands.Converter):
+    async def convert(self, context: commands.Context, argument: str) -> int:
+        if not argument:
+            return 0
+
+        adjusted_argument = argument.lower().replace(" ", "")
+        matches = time_regex.findall(adjusted_argument)
+        time = 0
+        for v, k in matches:
+            try:
+                time += time_dict[k] * float(v)
+            except KeyError:
+                raise commands.BadArgument(
+                    f"{k} is an invalid unit of time! h/m/s are valid!"
+                )
+            except ValueError:
+                raise commands.BadArgument(f"{v} is not a number!")
+
+        if time > 21600:
+            return 21600
+
+        return time
+
+
+class TimeConverter(commands.Converter):
+    async def convert(self, context: commands.Context, argument: str) -> int:
+        if not argument:
+            return 0
+
+        adjusted_argument = argument.lower().replace(" ", "")
+        matches = time_regex.findall(adjusted_argument)
+        match = month_regex.findall(adjusted_argument)
+        time = 0
+        for (
+            v,
+            k,
+        ) in matches:
+            try:
+                time += time_dict[k] * float(v)
+            except KeyError:
+                raise commands.BadArgument(
+                    f"{k} is an invalid unit of time. y/mo/w/d/h/m/s are valid."
+                )
+            except ValueError:
+                raise commands.BadArgument(f"{v} is not a number.")
+
+        for v, k, i, n in match:
+            try:
+                time += (month_dict[k] - 60) * float(v)
+            except KeyError:
+                raise commands.BadArgument(
+                    f"{k} is an invalid unit of time. y/mo/w/d/h/m/s are valid."
+                )
+            except ValueError:
+                raise commands.BadArgument(f"{v} is not a number.")
+
+        if time < 1:
+            return 0
+
+        return time
+
+
+class MemberConverter(commands.Converter):
     """
-    Returns whether a user has administrative power.
-    """
-    permissions = [
-        k
-        for k, v in dict(
-            discord.Permissions(context.author.guild_permissions.value)
-        ).items()
-        if v
-    ]
-    if "administrator" in permissions:
-        return True
-
-    return False
-
-
-def guild_owner() -> commands.check:
-    """
-    A custom decorator that validates
-    whether a user is the server owner.
+    Attemps to return a Member object through
+    local and/or global lookups.
     """
 
-    async def predicate(context: commands.Context) -> Union[bool, Exception]:
-        if context.author.id == context.guild.owner_id:
-            return True
+    async def convert(
+        self, context: commands.Context, argument: str
+    ) -> Optional[discord.Member]:
+        cache: dict[int, discord.Member] = context.bot.cache["member"]
+        try:
+            cached_member = cache.get(int(argument))
+            if cached_member:
+                return cached_member
+        except (ValueError, TypeError):
+            pass
 
-        raise NotGuildOwner()
+        try:
+            member = await commands.MemberConverter().convert(context, argument)
+            cache.update({member.id: member})
+            return member
+        except commands.MemberNotFound:
+            pass
 
-    return commands.check(predicate)
+        try:
+            user_id = int(argument)
+            member = await context.guild.fetch_member(user_id)
+            cache.update({member.id: member})
+            return member
+        except (discord.NotFound, ValueError):
+            pass
 
 
-def guild_bot_owner() -> commands.check:
+class UserConverter(commands.Converter):
     """
-    A custom decorator that validates whether the user
-    is the server owner or bot owner.
-    """
-
-    async def predicate(context: commands.Context) -> Union[bool, Exception]:
-        if (
-            context.author.id in context.bot.owner_ids
-            or context.author.id == context.guild.owner_id
-        ):
-            return True
-
-        raise NotGuildOwner()
-
-    return commands.check(predicate)
-
-
-def is_admin() -> commands.check:
-    """
-    A custom decorator that validates
-    whether a user has higher level authorization.
-    """
-
-    async def predicate(context: commands.Context) -> Union[bool, Exception]:
-        if (
-            context.author.id == context.guild.owner_id
-            or context.guild.get_role(
-                context.bot.admins.get(context.guild.id).get("admin")
-            )
-            in context.author.roles
-            or has_admin(context)
-        ):
-            return True
-
-        raise NotAdmin()
-
-    return commands.check(predicate)
-
-
-def is_mod() -> commands.check:
-    """
-    A custom decorator that validates
-    whether a user has lower level authorization.
+    Attemps to return a User object through
+    local and/or global lookups.
     """
 
-    async def predicate(context: commands.Context) -> Union[bool, Exception]:
-        if (
-            context.author.id == context.guild.owner_id
-            or context.guild.get_role(
-                context.bot.admins.get(context.guild.id).get("mod")
-            )
-            in context.author.roles
-            or context.guild.get_role(
-                context.bot.admins.get(context.guild.id).get("admin")
-            )
-            in context.author.roles
-            or has_admin(context)
-        ):
-            return True
+    async def convert(
+        self, context: commands.Context, argument: str
+    ) -> Optional[discord.User]:
 
-        raise NotMod()
+        try:
+            lookup = await commands.UserConverter().convert(context, argument)
+            user = await self.find_user(context, lookup.id)
+            if user:
+                return user
+        except commands.UserNotFound:
+            pass
 
-    return commands.check(predicate)
+    async def find_user(
+        self, context: commands.Context, user_id: int
+    ) -> Optional[Union[discord.User, None]]:
+
+        cache: dict[int, discord.User] = context.bot.cache["user"]
+        cached_user = cache.get(user_id)
+        if cached_user:
+            return cached_user
+
+        try:
+            user: discord.User = await context.bot.fetch_user(user_id)
+            if user:
+                cache.update({user.id: user})
+                return user
+        except discord.NotFound:
+            pass
+
+        return None
 
 
-def tag_perms(context: commands.Context, owner: int) -> bool:
+class BannedUserConverter(commands.Converter):
     """
-    This method validates permission of command author when
-    editing/deleting tags.
+    Attemps to return a User object through
+    local and/or global lookups.
     """
-    if (
-        context.author.id == context.guild.owner_id
-        or context.guild.get_role(context.bot.admins.get(context.guild.id).get("mod"))
-        in context.author.roles
-        or context.guild.get_role(context.bot.admins.get(context.guild.id).get("admin"))
-        in context.author.roles
-        or has_admin(context)
-        or context.author.id == owner.id
-    ):
 
-        return True
+    async def convert(
+        self, context: commands.Context, argument: str
+    ) -> Optional[discord.Object]:
 
-    return False
+        all_guild_bans: dict[int, dict[str, int]] = context.bot.guild_bans
+        guild_ban_entries = all_guild_bans.get(context.guild.id)
+        if guild_ban_entries:
+            banned_user = guild_ban_entries.get(argument)
+            if banned_user:
+                return discord.Object(banned_user)
+
+        ban_entries: List[discord.guild.BanEntry] = await context.guild.bans()
+        guild_bans = {str(ban.user): ban.user.id for ban in ban_entries}
+        context.bot.guild_bans.update({context.guild.id: guild_bans})
+        banned_user = guild_bans.get(argument)
+        if banned_user:
+            return discord.Object(banned_user)

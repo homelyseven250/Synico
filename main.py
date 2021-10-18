@@ -1,6 +1,7 @@
 import asyncio
 import os
 from configparser import ConfigParser
+from typing import Callable, List, Union
 
 import aiohttp
 import discord
@@ -60,6 +61,8 @@ class Bot(commands.Bot):
             intents=intents,
             owner_ids=[220418804176388097, 672498629864325140],
             allowed_mentions=discord.AllowedMentions.none(),
+            slash_command_guilds=[881812541012058132],
+            slash_commands=True,
         )
 
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
@@ -67,6 +70,10 @@ class Bot(commands.Bot):
         self.pool = Database(self.loop).pool
 
         self.loop.create_task(self.__ainit__())
+
+    async def setup(self) -> None:
+        self.extensions()
+        await super().setup()
 
     async def __ainit__(self) -> None:
         """
@@ -88,7 +95,7 @@ class Bot(commands.Bot):
         """
         self.config = ConfigParser()
         self.config.read("config.ini")
-        self.extensions()
+
         super().run(self.config["SECRET"]["token"], reconnect=True)
 
     async def close(self) -> None:
@@ -115,7 +122,7 @@ class Bot(commands.Bot):
                 except Exception as error:
                     print(f"Could not load [{cog}]: {error}")
 
-        if bool(self.config["SETTINGS"]["debug"]):
+        if bool(self.config["SETTINGS"]["debug"]) is True:
             self.debugging()
 
     def debugging(self) -> None:
@@ -128,6 +135,9 @@ class Bot(commands.Bot):
         os.environ["JISHAKU_NO_UNDERSCORE"] = "True"
         os.environ["JISHAKU_NO_DM_TRACEBACK"] = "True"
         os.environ["JISHAKU_HIDE"] = "True"
+
+        jishaku = self.get_command("jsk")
+        jishaku.hidden = True
 
     async def assign_attributes(self) -> None:
         """
@@ -164,19 +174,33 @@ class Bot(commands.Bot):
         self.uptime = discord.utils.utcnow()
         print(self.user, "has reconnected.", round(self.latency * 1000), "ms.")
 
-    async def get_prefix(self, message: discord.Message):
+    async def get_prefix(
+        self, message: Union[discord.Message, commands.bot._FakeSlashMessage]
+    ) -> Union[
+        Callable[
+            [Union[commands.Bot, commands.AutoShardedBot], discord.Message], List[str]
+        ],
+        Union[List[str], str],
+    ]:
         """
         |coro|
 
         returns :class:`str` containing the prefix set for the :class:`discord.Guild`
         or defaults to default prefix.
         """
+
         if message.guild and hasattr(self, "prefix"):
             if not self.prefix.get(message.guild.id, None):
                 await self.add_prefix(message.guild.id)
 
-            prefix: str = self.prefix.get(message.guild.id, self.user.mention)
-            return commands.when_mentioned_or(prefix)(self, message)
+            if isinstance(message, discord.Message):
+                prefix: str = self.prefix.get(message.guild.id)
+                return (
+                    commands.when_mentioned_or(prefix)(self, message)
+                    or self.user.mention
+                )
+
+            return await super().get_prefix(message)
 
     async def on_message(self, message: discord.Message):
         """
@@ -190,6 +214,9 @@ class Bot(commands.Bot):
 
                 if self.user.mentioned_in(message):
                     self.cache["member"].update({message.author.id: message.author})
+                    if not self.cache["user"].get(message.author.id):
+                        user = await message.guild.fetch_member(message.author.id)
+                        self.cache["user"].update({message.author.id: user})
 
             try:
                 await self.process_commands(message)
@@ -197,26 +224,27 @@ class Bot(commands.Bot):
                 print(error)
 
     async def process_commands(self, message: discord.Message) -> None:
-        context = await self.get_context(message)
-        if context.command:
-            command = context.command.name
-            is_disabled = self.disabled_command.get(command)
-            if is_disabled:
-                await context.send(
-                    f"Command `{context.prefix}{context.command.name}` is currently disabled."
-                )
-                return
+        return await super().process_commands(message)
 
-            return await super().process_commands(message)
+    async def on_interaction(self, interaction: discord.Interaction) -> None:
+        self.cache["member"].update({interaction.user.id: interaction.user})
+        if not self.cache["user"].get(interaction.user.id):
+            user = await interaction.guild.fetch_member(interaction.user.id)
+            self.cache["user"].update({interaction.user.id: user})
 
-    async def on_command_completion(self, context: commands.Context):
+        await super().on_interaction(interaction)
+
+    async def on_command_completion(self, context: commands.Context) -> None:
         """
         An event fired when a command has
         been invoked successfully.
         """
         self.cache["member"].update({context.author.id: context.author})
+        if not self.cache["user"].get(context.author.id):
+            user = await context.guild.fetch_member(context.author.id)
+            self.cache["user"].update({context.author.id: user})
 
-    async def add_prefix(self, guild_id: int):
+    async def add_prefix(self, guild_id: int) -> str:
         """
         |coro|
 
@@ -224,7 +252,7 @@ class Bot(commands.Bot):
         the prefix assign to the :class:`discord.Guild`.
         """
         await self.pool.execute(
-            "INSERT INTO guilds (guild, prefix) VALUES ($1, $2) ON CONFLICT (guilds_pkey) DO NOTHING",
+            "INSERT INTO guilds (guild, prefix) VALUES ($1, $2) ON CONFLICT (guild) DO NOTHING",
             guild_id,
             self.user.mention,
         )
@@ -240,7 +268,9 @@ class Bot(commands.Bot):
         will assign instance attributes that specifically build
         the local cache after accessing the database.
         """
-        self.cache = {"member": {}, "user": {}}
+        self.cache: dict[str, dict[int, Union[discord.Member, discord.User]]] = {"member": {}, "user": {}}  # type: ignore
+
+        self.guild_bans: dict[int, dict] = {}
 
         self.prefix: dict[int, str] = {
             guild: prefix
@@ -252,14 +282,7 @@ class Bot(commands.Bot):
         self.admins: dict[int, dict[str, int]] = {
             guild: {"admin": admin, "mod": mod}
             for guild, admin, mod in await self.pool.fetch(
-                "SELECT guild, admin, mod FROM guilds"
-            )
-        }
-
-        self.disabled_command: dict[str, bool] = {
-            command: disabled
-            for command, disabled in await self.pool.fetch(
-                "SELECT command, disabled FROM commands"
+                "SELECT guild, admins, mod FROM guilds"
             )
         }
 

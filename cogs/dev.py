@@ -1,12 +1,10 @@
 from typing import List
 
 import discord
-
-from discord.ext import commands, menus
-from utils import AllCommands, SourceReader, guild_bot_owner, start_menu
+from discord.ext import commands
 
 
-class Developer(commands.Cog):
+class Developer(commands.Cog, command_attrs=dict(hidden=True, slash_command=False)):
     """
     A module to debug and give helpful information
     to developers.
@@ -14,20 +12,6 @@ class Developer(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-
-    @commands.command()
-    @commands.is_owner()
-    async def source(
-        self,
-        context: commands.Context,
-        *,
-        object: SourceReader,
-    ) -> None:
-        """
-        Display source code of a command or file.
-        """
-        menu = menus.MenuPages(object, delete_message_after=True)
-        await menu.start(context)
 
     @commands.command()
     @commands.is_owner()
@@ -135,72 +119,6 @@ class Developer(commands.Cog):
             f"{context.me} is now shutting down... {discord.utils.format_dt(time)}"
         )
         await context.bot.close()
-
-    @commands.command()
-    @commands.is_owner()
-    async def disable(self, context: commands.Context, command: str) -> None:
-        """
-        Disables a command globally.
-        """
-        _command: commands.Command = context.bot.get_command(command)
-        if _command:
-            is_disabled: bool = context.bot.disabled_command.get(command)
-            if is_disabled:
-                await context.send(f"`{command}` command is already disabled.")
-                return
-
-            context.bot.disabled_command[command] = True
-            await context.bot.pool.execute(
-                "INSERT INTO commands (command, disabled) VALUES ($1, $2)",
-                _command.name,
-                True,
-            )
-            await context.send(f"`{command}` command has been disabled.")
-            return
-
-        await context.send(f"{command} does not exist.")
-
-    @commands.command()
-    @commands.is_owner()
-    async def enable(self, context: commands.Context, command: str) -> None:
-        """
-        Enables a previously disabled command.
-        """
-        _command: commands.Command = context.bot.get_command(command)
-        if _command:
-            command = _command.name
-            is_disabled: bool = context.bot.disabled_command.get(command)
-            if not is_disabled:
-                await context.send(f"{command} command is not disabled.")
-                return
-
-            context.bot.disabled_command.pop(command)
-            await context.bot.pool.execute(
-                "DELETE FROM commands WHERE command = $1", command
-            )
-            await context.send(f"`{command}` command has been enabled.")
-            return
-
-        await context.send(f"{command} does not exist.")
-
-    @commands.command(name="commands")
-    @guild_bot_owner()
-    async def _commands(self, context: commands.Context):
-        """
-        List all commands and whether they're enabled/disabled.
-        """
-        all_commands: List[tuple] = []
-        for command in sorted(
-            [command.name.title() for command in context.bot.commands]
-        ):
-            is_disabled: bool = context.bot.disabled_command.get(command)
-            if is_disabled:
-                all_commands.append((command, is_disabled))
-
-            else:
-                all_commands.append((command, False))
-
-        await start_menu(context, AllCommands(all_commands))
 
 
 def setup(bot):
