@@ -2,7 +2,7 @@
 import asyncio
 import os
 from configparser import ConfigParser
-from typing import Callable, List, Union
+from typing import Callable, List, Optional, Union
 
 import aiohttp
 import discord
@@ -62,7 +62,7 @@ class Bot(commands.Bot):
             intents=intents,
             owner_ids=[220418804176388097, 672498629864325140],
             allowed_mentions=discord.AllowedMentions.none(),
-            slash_command_guilds=[881812541012058132],
+            # slash_command_guilds=[881812541012058132],
             slash_commands=True,
         )
 
@@ -216,8 +216,12 @@ class Bot(commands.Bot):
                 if self.user.mentioned_in(message):
                     self.cache["member"].update({message.author.id: message.author})
                     if not self.cache["user"].get(message.author.id):
-                        user = await message.guild.fetch_member(message.author.id)
-                        self.cache["user"].update({message.author.id: user})
+                        context: commands.Context = await self.get_context(message)
+                        user: Optional[discord.User] = await context.bot.fetch_user(
+                            message.author.id
+                        )
+                        if isinstance(user, discord.User):
+                            self.cache["user"].update({user.id: user})
 
             try:
                 await self.process_commands(message)
@@ -229,10 +233,6 @@ class Bot(commands.Bot):
 
     async def on_interaction(self, interaction: discord.Interaction) -> None:
         self.cache["member"].update({interaction.user.id: interaction.user})
-        if not self.cache["user"].get(interaction.user.id):
-            user = await interaction.guild.fetch_member(interaction.user.id)
-            self.cache["user"].update({interaction.user.id: user})
-
         await super().on_interaction(interaction)
 
     async def on_command_completion(self, context: commands.Context) -> None:
@@ -242,8 +242,11 @@ class Bot(commands.Bot):
         """
         self.cache["member"].update({context.author.id: context.author})
         if not self.cache["user"].get(context.author.id):
-            user = await context.guild.fetch_member(context.author.id)
-            self.cache["user"].update({context.author.id: user})
+            user: Optional[discord.User] = await context.bot.fetch_user(
+                context.author.id
+            )
+            if isinstance(user, discord.User):
+                self.cache["user"].update({user.id: user})
 
     async def add_prefix(self, guild_id: int) -> str:
         """

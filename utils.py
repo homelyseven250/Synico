@@ -46,14 +46,15 @@ async def check_uuid(
 async def start_menu(
     context: commands.Context,
     source: menus.ListPageSource,
-    delete_message_after: bool = True,
+    delete_message_after: bool = False,
+    clear_reactions_after: bool = True,
 ) -> None:
     """
     |coro|
 
     Method initiates menu instance.
     """
-    menu = ViewMenuPages(source=source, delete_message_after=delete_message_after)
+    menu = ViewMenuPages(source=source, clear_reactions_after=clear_reactions_after)
     with contextlib.suppress(AttributeError):
         return await menu.start(context)
 
@@ -130,6 +131,18 @@ class Warnings(menus.ListPageSource):
             text=f"User ID: {entries['warned']} | Warn ID #{entries['warning_id']} | Warning {menu.current_page + 1}/{self.get_max_pages()}"
         )
         return embed
+
+
+class HelpMenu(menus.ListPageSource):
+    """Returns a pagination of the help command."""
+
+    def __init__(self, data: list) -> None:
+        super().__init__(data, per_page=1)
+
+    async def format_page(
+        self, menu: menus.MenuPages, entries: list
+    ) -> Union[str, discord.Embed, dict]:
+        return entries
 
 
 ### Converters
