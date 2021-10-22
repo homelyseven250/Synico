@@ -363,16 +363,19 @@ class Errors(commands.Cog):
 
         else:
             unhandled_error: List[str] = traceback.format_exception(
-                type(error), error, error.__traceback__, file=sys.stderr
+                etype=type(error), value=error, tb=error.__traceback__
             )
-            channel: discord.TextChannel = await context.bot.get_channel(
-                899515548222754908
-            )
-            embed = context.bot.embed(
+            channel: discord.TextChannel = context.bot.get_channel(899515548222754908)
+            embed: discord.Embed = context.bot.embed(
                 title=f"Unhandled exception in command [{context.command}]:",
                 description="".join(unhandled_error),
                 color=0x2ECC71,
+                timestamp=discord.utils.utcnow(),
             )
+            embed.set_author(
+                name=str(context.author), icon_url=context.author.display_avatar
+            )
+            embed.set_footer(text=(context.guild), icon_url=context.guild.icon.url)
             await channel.send(embed=embed)
 
 

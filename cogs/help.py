@@ -4,55 +4,7 @@ import discord
 from discord.ext import commands
 
 from main import Bot
-
-
-class Dropdown(discord.ui.Select):
-    def __init__(
-        self,
-        ctx: commands.Context,
-        cogs: Mapping[Optional[commands.Cog], List[commands.Command]],
-    ) -> None:
-        self.ctx = ctx
-        self.cogs = cogs
-
-        options = [
-            discord.SelectOption(
-                label=cog.qualified_name,
-                description=f"Commands within the {cog.qualified_name} module.",
-            )
-            for cog in self.cogs
-            if cog
-            and len(cog.get_commands()) > 1
-            and not cog.qualified_name == "Developer"
-        ]
-
-        super().__init__(
-            placeholder="Choose a module...",
-            min_values=1,
-            max_values=1,
-            options=options,
-        )
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        choice = self.values[0]
-        response = await self.ctx.bot.help_command.command_callback(
-            self.ctx, command=choice
-        )
-        await interaction.response.edit_message(embed=response)
-
-
-class DropdownView(discord.ui.View):
-    def __init__(
-        self,
-        ctx: commands.Context,
-        cogs: Mapping[Optional[commands.Cog], List[commands.Command]],
-    ) -> None:
-        super().__init__()
-
-        self.ctx = ctx
-        self.cogs = cogs
-
-        self.add_item(Dropdown(ctx, cogs))
+from utils import HelpMenu, start_menu
 
 
 class HelpCommand(commands.HelpCommand):
@@ -68,33 +20,31 @@ class HelpCommand(commands.HelpCommand):
 
         This method is called when the help command is called with no arguments.
         """
+        embeds = []
         embed: discord.Embed = self.context.bot.embed(
             color=0x006CCB,
-            description="```\nWelcome to the Synico help main menu!\n\nUse the dropdown below to view \
-                all commands available within a module\nUse /help (command) for more info on command \
-                usage.\n\nThank you for using Synico!\n```",
+            description="Welcome to the main help menu for Synico!\n\nUse the buttons below to navigate through the modules.\
+                If you are curious on how to run a command then use `/help (command name)`\n\n\
+                If you have any suggestions or concerns, let us know by either sending a dm to the owners or using the `/suggest` command.\n\n\
+                Thank you for using Synico!",
+            timestamp=discord.utils.utcnow(),
         )
-        for cog, commands in mapping.items():
-            if (
-                cog
-                and len(commands) >= 1
-                and not cog.qualified_name in ("Developer", "Jishaku")
-            ):
-                all_commands = [cmd for cmd in cog.walk_commands() if cmd.short_doc]
-                embed.add_field(
-                    name=f"({len(all_commands)}) {cog.qualified_name.title()} commands",
-                    value=", ".join([f"/{cmd}" for cmd in all_commands[:10]])
-                    + f" {'and more...' if len(all_commands) > 10 else ''}",
-                )
+        for cog, commands in [
+            (cog, commands)
+            for cog, commands in mapping.items()
+            if cog
+            and len(commands) >= 1
+            and not cog.qualified_name in ("Developer", "Jishaku")
+        ]:
+            embeds.append(await self.send_cog_help(cog))
 
         embed.set_author(
             name="Join the support server!", url="https://discord.gg/Xh9Whbrqbj"
         )
-        embed.set_footer(text=f"Type /help (command) for more info on a command.")
         embed.set_thumbnail(url=self.context.me.display_avatar.url)
+        embeds.insert(0, embed)
 
-        view = DropdownView(self.context, mapping)
-        await self.context.send(embed=embed, view=view, ephemeral=True)
+        await start_menu(self.context, HelpMenu(embeds))
 
     async def send_cog_help(self, cog: commands.Cog) -> None:
         """
@@ -114,15 +64,13 @@ class HelpCommand(commands.HelpCommand):
             or None
         )
 
-        embed: discord.Embed = discord.Embed(
+        embed: discord.Embed = self.context.bot.embed(
             title=cog.qualified_name.title(),
             description=f"{cog.description}\n\n{commands}\n",
             colour=0x006CCB,
         )
 
-        embed.set_thumbnail(
-            url="https://cdn.discordapp.com/avatars/845025665325465630/749e9e8e466140dd7df45782bc7f582e.png"
-        )
+        embed.set_thumbnail(url=self.context.me.display_avatar.url)
         embed.set_footer(text=f"Type /help (command) for more info on a command.")
         return embed
 

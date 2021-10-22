@@ -50,15 +50,25 @@ class Info(commands.Cog):
         Display a member's banner
         """
         member = member or context.author
-        user: discord.User = await UserConverter().convert(context, member.mention)
+
+        async def get_cached_user(_id: int) -> discord.User:
+            user: Optional[discord.User] = context.bot.cache["user"].get(_id)
+            if isinstance(user, discord.User):
+                return user
+
+            fetched_user: discord.User = await context.bot.fetch_user(_id)
+            context.bot.cache["user"].update({fetched_user.id: fetched_user})
+            return await get_cached_user(fetched_user.id)
+
+        user = await get_cached_user(member.id)
         banner = user.banner
-        if not banner:
+        if banner is None:
             return await context.send(
                 f"{member} does not have a banner.", ephemeral=True
             )
 
         embed: discord.Embed = context.bot.embed(color=0x2ECC71)
-        embed.set_image(url=banner)
+        embed.set_image(url=banner.url)
         embed.set_footer(text=f"{member}'s Banner")
         await context.send(embed=embed)
 
