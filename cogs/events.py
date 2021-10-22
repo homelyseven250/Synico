@@ -1134,7 +1134,7 @@ class Events(commands.Cog):
                 webhook = await self.prepare_webhook(channel)
 
                 embed: discord.Embed = self.bot.embed(
-                    description=f"{guild} sticker(s) have been updated.",
+                    description=f"{guild} emojis(s) have been updated.",
                     color=0xE67E22,
                 )
                 embed.set_author(name=str(guild), icon_url=guild.icon.url)
