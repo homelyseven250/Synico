@@ -131,8 +131,10 @@ class Comms():
                 embed.set_image(url=data['image'])
             if 'message-author' in data and 'authorIcon' in data:
                 embed.set_author(name=data['message-author'], url=data['message-author-url'], icon_url=data['authorIcon'])
-            elif 'message-author' in data:
+            elif 'message-author-url' in data:
                 embed.set_author(name=data['message-author'], url=data['message-author-url'])
+            elif 'message-author':
+                embed.set_author(name=data['message-author'])
             asyncio.run_coroutine_threadsafe(channel.send(embed=embed), bot.loop)
             
         async def connect():
