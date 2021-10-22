@@ -18,12 +18,18 @@ class ViewMenu(menus.Menu):
 
         def make_callback(button):
             async def callback(interaction):
-                if interaction.user.id not in {
-                    self.bot.owner_id,
-                    self._author_id,
-                    *self.bot.owner_ids,
-                }:
+                if interaction.user.id != self._author_id:
                     return
+
+                # Original below, changed to allow only
+                # the author to interact with view
+                # if interaction.user.id not in {
+                #    self.bot.owner_id,
+                #    self._author_id,
+                #    *self.bot.owner_ids,
+                # }:
+                #    return
+
                 if self.auto_defer:
                     await interaction.response.defer()
                 try:
@@ -167,7 +173,7 @@ class ViewMenu(menus.Menu):
                 await self._event.wait()
 
     def send_with_view(self, messageable, *args, **kwargs):
-        return messageable.send(*args, **kwargs, view=self.build_view())
+        return messageable.send(*args, **kwargs, view=self.build_view(), ephemeral=True)
 
     def stop(self):
         self._running = False
