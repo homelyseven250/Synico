@@ -216,7 +216,7 @@ class Games(commands.Cog):
 
                 await message.edit(view=view)
 
-        async def check_win(check_against_dict: dict) -> bool:
+        async def check_win(check_against_dict) -> bool:
             """
             Compares possible win conditions with
             the current positions of the slots.
@@ -248,7 +248,7 @@ class Games(commands.Cog):
 
             return False
 
-        async def spin_slots(message: discord.Message) -> dict[str, str]:
+        async def spin_slots(message: discord.Message):
             """
             Handles the act of 'spinning' the slots.
             """
