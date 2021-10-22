@@ -227,7 +227,7 @@ class Games(commands.Cog):
             new_row_dict = {button.custom_id: button.emoji.name for button in new_row}
             return new_row_dict
 
-        def is_winner(check_against_dict: dict[str, str]) -> bool:
+        def is_winner(check_against_dict: dict) -> bool:
             win_conditions = [
                 (1, 2, 3),
                 (4, 5, 6),
