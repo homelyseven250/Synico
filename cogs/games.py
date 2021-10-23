@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Union
+from typing import List, Optional, Union
 import discord
 import random
 
@@ -156,78 +156,71 @@ class Games(commands.Cog):
 
     @_play.command()
     async def slots(self, context: commands.Context):
-
+        """
+        Play a game of Slots.
+        """
         view = discord.ui.View()
-        static_emotes = ["🍒", "🍇", "🍋", "🍉", "⭐", "🍒", "🍇", "🍋", "🍉"]
-        final_row = [
+        slot_emotes = ["🍒", "🍇", "🍋", "🍉", "⭐", "🍒", "🍇", "🍋", "🍉"]
+        initial_final_row = [
             discord.ui.Button(emoji="➡️", row=3),
             discord.ui.Button(custom_id="spin", emoji="🕹️", row=3),
             discord.ui.Button(emoji="⬅️", row=3),
         ]
 
-        for button in [
-            discord.ui.Button(
-                emoji=random.choice(static_emotes),
-                row=0 if row < 3 else 1 if 6 >= row > 3 else 2,
-            )
-            for row in range(len(static_emotes))
-        ]:
-            view.add_item(button)
-
-        for button in final_row:
-            view.add_item(button)
-
-        async def spinning() -> List[discord.ui.Button]:
-            view.clear_items()
-            for button in [
+        async def restart_slots(won: bool, message: discord.Message) -> None:
+            """
+            Cleans up previous state of slot machine to
+            check if user wants to spin again.
+            """
+            updated_buttons = [button for button in view.children[:-3] if button] + [
+                discord.ui.Button(custom_id="restart", emoji="🔁", row=3),
+                discord.ui.Button(emoji="↔️", row=3),
                 discord.ui.Button(
-                    emoji=self.bot.get_emoji(emoji),
-                    row=0 if row < 3 else 1 if 6 >= row > 3 else 2,
-                )
-                for row, emoji in enumerate(
-                    [
-                        900262456205660183,
-                        900262456453107732,
-                        900262456499253340,
-                        900262456453107732,
-                        900262456205660183,
-                        900262456499253340,
-                        900262456499253340,
-                        900262456453107732,
-                        900262456205660183,
-                    ]
-                )
-            ]:
-                view.add_item(button)
-
-            for button in final_row:
-                button.disabled = True
-                view.add_item(button)
-
-            await message.edit("\u200b", view=view)
-            await asyncio.sleep(3)
-            return stop()
-
-        def stop() -> List[discord.ui.Button]:
-            view.clear_items()
-            new_row = [
-                discord.ui.Button(
-                    emoji=random.choice(static_emotes),
-                    row=0 if index <= 3 else 1 if 6 >= index > 3 else 2,
-                    custom_id=str(index),
-                )
-                for index, _ in enumerate(static_emotes, start=1)
+                    emoji="⏹️",
+                    row=3,
+                    custom_id="finish",
+                ),
             ]
-            for button in new_row:
-                view.add_item(button)
+            view.clear_items()
+            for item in updated_buttons:
+                view.add_item(item)
 
-            for button in final_row:
-                view.add_item(button)
+            await message.edit(
+                content=f"```diff\n{'+' if won is True else '-'} You {'win' if won is True else 'lose'}!```",
+                view=view,
+            )
 
-            new_row_dict = {button.custom_id: button.emoji.name for button in new_row}
-            return new_row_dict
+            try:
+                interaction: discord.Interaction = await self.bot.wait_for(
+                    "interaction",
+                    check=lambda i: i.message.id == message.id
+                    and i.user.id == context.author.id
+                    and i.data.get("custom_id") in ("restart", "finish"),
+                    timeout=60,
+                )
 
-        def is_winner(check_against_dict: dict) -> bool:
+                if interaction.data.get("custom_id") == "finish":
+                    for button in view.children:
+                        if isinstance(button, discord.ui.Button):
+                            button.disabled = True
+
+                    await message.edit(content="\u200b", view=view)
+
+                elif interaction.data.get("custom_id") == "restart":
+                    await slot_menu(message)
+
+            except asyncio.TimeoutError:
+                for button in view.children:
+                    if isinstance(button, discord.ui.Button):
+                        button.disabled = True
+
+                await message.edit(view=view)
+
+        async def check_win(check_against_dict) -> bool:
+            """
+            Compares possible win conditions with
+            the current positions of the slots.
+            """
             win_conditions = [
                 (1, 2, 3),
                 (4, 5, 6),
@@ -255,71 +248,106 @@ class Games(commands.Cog):
 
             return False
 
-        message: discord.Message = await context.send("\u200b", view=view)
-
-        async def restart():
-            updated_buttons = [button for button in view.children[:-3] if button] + [
-                discord.ui.Button(custom_id="restart", emoji="🔁", row=3),
-                discord.ui.Button(emoji="↔️", row=3),
-                discord.ui.Button(
-                    emoji="⏹️",
-                    row=3,
-                    custom_id="finish",
-                ),
-            ]
+        async def spin_slots(message: discord.Message):
+            """
+            Handles the act of 'spinning' the slots.
+            """
             view.clear_items()
-            for item in updated_buttons:
-                view.add_item(item)
+            for button in [
+                discord.ui.Button(
+                    emoji=self.bot.get_emoji(emoji),
+                    row=0 if row < 3 else 1 if 6 >= row > 3 else 2,
+                )
+                for row, emoji in enumerate(
+                    [
+                        900262456205660183,
+                        900262456453107732,
+                        900262456499253340,
+                        900262456453107732,
+                        900262456205660183,
+                        900262456499253340,
+                        900262456499253340,
+                        900262456453107732,
+                        900262456205660183,
+                    ]
+                )
+            ]:
+                view.add_item(button)
 
-            await message.edit(
-                content=f"```diff\n{'+' if won else '-'} You {'win' if won is True else 'lose'}!```",
-                view=view,
-            )
+            for button in initial_final_row:
+                button.disabled = True
+                view.add_item(button)
+
+            await message.edit("\u200b", view=view)
+            await asyncio.sleep(3)
+            view.clear_items()
+            new_row = [
+                discord.ui.Button(
+                    emoji=random.choice(slot_emotes),
+                    row=0 if index <= 3 else 1 if 6 >= index > 3 else 2,
+                    custom_id=str(index),
+                )
+                for index, _ in enumerate(slot_emotes, start=1)
+            ]
+            for button in new_row:
+                view.add_item(button)
+
+            for button in initial_final_row:
+                button.disabled = False
+                view.add_item(button)
+
+            await message.edit(view=view)
+
+            new_row_dict = {
+                button.custom_id: button.emoji.name
+                for button in new_row
+                if button.emoji and button.custom_id
+            }
+            return new_row_dict
+
+        async def slot_menu(message: discord.Message = None):
+            """
+            Initial message seen when starting/restarting game.
+            """
+            view.clear_items()
+            for button in [
+                discord.ui.Button(
+                    emoji=random.choice(slot_emotes),
+                    row=0 if row < 3 else 1 if 6 >= row > 3 else 2,
+                )
+                for row in range(len(slot_emotes))
+            ]:
+                view.add_item(button)
+
+            for button in initial_final_row:
+                view.add_item(button)
+
+            if message:
+                await message.edit("\u200b", view=view)
+            else:
+                message: discord.Message = await context.send("\u200b", view=view)
 
             try:
                 interaction: discord.Interaction = await self.bot.wait_for(
                     "interaction",
-                    check=lambda i: i.message.id == message.id
-                    and i.user.id == context.author.id
-                    and i.data.get("custom_id") in ("restart", "finish"),
                     timeout=60,
+                    check=lambda i: i.message.id == message.id
+                    and i.user.id == context.author.id,
                 )
 
-                if interaction.data.get("custom_id") == "finish":
-                    for button in view.children:
-                        if isinstance(button, discord.ui.Button):
-                            button.disabled = True
-
-                    await message.edit(view=view)
-
-                elif interaction.data.get("custom_id") == "restart":
-                    await context.command.invoke(context)
+                if interaction.data.get("custom_id") == "spin":
+                    results_dict = await spin_slots(message)
+                    won = await check_win(results_dict)
+                    await restart_slots(won, message)
 
             except asyncio.TimeoutError:
                 for button in view.children:
                     if isinstance(button, discord.ui.Button):
                         button.disabled = True
 
-                await message.edit(view=view)
+                await message.edit(content="Timed out.", view=view)
 
-        try:
-            _: discord.Interaction = await self.bot.wait_for(
-                "interaction",
-                timeout=60,
-                check=lambda i: i.message.id == message.id
-                and i.user.id == context.author.id
-                and i.data.get("custom_id") == "spin",
-            )
-
-            results_dict = await spinning()
-            won = is_winner(results_dict)
-            await restart()
-        except asyncio.TimeoutError:
-            for button in view.children:
-                if isinstance(button, discord.ui.Button):
-                    button.disabled = True
-
-            await message.edit(content="Timed out.", view=view)
+        await slot_menu()
 
 
 def setup(bot: Bot):
