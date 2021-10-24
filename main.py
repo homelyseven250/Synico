@@ -64,7 +64,7 @@ class Bot(commands.Bot):
             intents=intents,
             owner_ids=[220418804176388097, 672498629864325140, 652742251683905552],
             allowed_mentions=discord.AllowedMentions.none(),
-            slash_command_guilds=[881812541012058132],
+            slash_command_guilds=[888111337333456916, 894779934541746176],
             slash_commands=True,
         )
 

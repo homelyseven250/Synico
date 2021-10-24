@@ -365,7 +365,7 @@ class Errors(commands.Cog):
             unhandled_error: List[str] = traceback.format_exception(
                 etype=type(error), value=error, tb=error.__traceback__
             )
-            channel: discord.TextChannel = context.bot.get_channel(899515548222754908)
+            channel: discord.TextChannel = context.bot.get_channel(901332202577596436)
             embed: discord.Embed = context.bot.embed(
                 title=f"Unhandled exception in command [{context.command}]:",
                 description="".join(unhandled_error),
