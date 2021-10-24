@@ -5,18 +5,29 @@ from typing import List, Union
 
 import discord
 from discord.ext import commands
+from discord.ext.commands import context
 
 
 class NotMod(commands.CheckFailure):
-    pass
+    def __init__(self, context: commands.Context) -> None:
+        super().__init__(
+            message=f"Only admins can use {context.prefix}{context.command.name}"
+        )
 
 
 class NotAdmin(commands.CheckFailure):
-    pass
+    def __init__(self, context: commands.Context) -> None:
+        super().__init__(
+            message=f"Only admins can use {context.prefix}{context.command.name}"
+        )
 
 
 class NotGuildOwner(commands.CheckFailure):
-    pass
+    def __init__(self, context: commands.Context) -> None:
+        self.guild = context.guild
+        super().__init__(
+            message=f"Only the owner of {self.guild} can use {context.prefix}{context.command.name}"
+        )
 
 
 def has_admin(context: commands.Context) -> bool:
@@ -36,46 +47,46 @@ def has_admin(context: commands.Context) -> bool:
     return False
 
 
-def guild_owner() -> commands.check:
+def guild_owner():
     """
     A custom decorator that validates
     whether a user is the server owner.
     """
 
-    async def predicate(context: commands.Context) -> Union[bool, Exception]:
+    async def predicate(context: commands.Context):
         if context.author.id == context.guild.owner_id:
             return True
 
-        raise NotGuildOwner()
+        raise NotGuildOwner(context)
 
     return commands.check(predicate)
 
 
-def guild_bot_owner() -> commands.check:
+def guild_bot_owner():
     """
     A custom decorator that validates whether the user
     is the server owner or bot owner.
     """
 
-    async def predicate(context: commands.Context) -> Union[bool, Exception]:
+    async def predicate(context: commands.Context):
         if (
             context.author.id in context.bot.owner_ids
             or context.author.id == context.guild.owner_id
         ):
             return True
 
-        raise NotGuildOwner()
+        raise NotGuildOwner(context)
 
     return commands.check(predicate)
 
 
-def is_admin() -> commands.check:
+def is_admin():
     """
     A custom decorator that validates
     whether a user has higher level authorization.
     """
 
-    async def predicate(context: commands.Context) -> Union[bool, Exception]:
+    async def predicate(context: commands.Context):
         if (
             context.author.id == context.guild.owner_id
             or context.guild.get_role(
@@ -86,18 +97,18 @@ def is_admin() -> commands.check:
         ):
             return True
 
-        raise NotAdmin()
+        raise NotAdmin(context)
 
     return commands.check(predicate)
 
 
-def is_mod() -> commands.check:
+def is_mod():
     """
     A custom decorator that validates
     whether a user has lower level authorization.
     """
 
-    async def predicate(context: commands.Context) -> Union[bool, Exception]:
+    async def predicate(context: commands.Context):
         if (
             context.author.id == context.guild.owner_id
             or context.guild.get_role(
@@ -112,7 +123,7 @@ def is_mod() -> commands.check:
         ):
             return True
 
-        raise NotMod()
+        raise NotMod(context)
 
     return commands.check(predicate)
 
@@ -156,7 +167,7 @@ class Errors(commands.Cog):
         before sending error output.
         """
         formatted = discord.utils.escape_markdown(str(error))
-        await context.send(content=f"**⚠️ | {formatted}**", ephemeral=True)
+        await context.send(content=f"⚠️ | {formatted}", ephemeral=True)
 
     @commands.Cog.listener()
     async def on_command_error(self, context: commands.Context, error: Exception):
@@ -343,23 +354,8 @@ class Errors(commands.Cog):
                 f"{context.prefix}{context.invoked_with} can be used {error.args[0][56:-14].replace('guild', 'server')}.",
             )
 
-        elif isinstance(error, NotMod):
-            await self.format_error(
-                context,
-                f"Only mods can use the command {context.prefix}{context.invoked_with}",
-            )
-
-        elif isinstance(error, NotAdmin):
-            await self.format_error(
-                context,
-                f"Only admins can use the command {context.prefix}{context.invoked_with}",
-            )
-
-        elif isinstance(error, NotGuildOwner):
-            await self.format_error(
-                context,
-                f"Only the owner of {context.guild} can use the command {context.prefix}{context.invoked_with}",
-            )
+        elif isinstance(error, commands.CheckFailure):
+            await self.format_error(context, error)
 
         else:
             unhandled_error: List[str] = traceback.format_exception(
