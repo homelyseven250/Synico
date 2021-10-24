@@ -357,6 +357,12 @@ class Errors(commands.Cog):
         elif isinstance(error, commands.CheckFailure):
             await self.format_error(context, error)
 
+        elif isinstance(error, discord.Forbidden):
+            await self.format_error(
+                context,
+                f"Failed to run {context.prefix}{context.invoked_with} due to {error.text.lower()}",
+            )
+
         else:
             unhandled_error: List[str] = traceback.format_exception(
                 etype=type(error), value=error, tb=error.__traceback__

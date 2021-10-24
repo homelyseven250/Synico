@@ -1,7 +1,9 @@
 #acid is epik and ruben is my babe
 import asyncio
 import os
+import sys
 from configparser import ConfigParser
+import traceback
 from typing import Callable, List, Optional, Union
 
 import aiohttp
@@ -62,8 +64,9 @@ class Bot(commands.Bot):
             intents=intents,
             owner_ids=[220418804176388097, 672498629864325140],
             allowed_mentions=discord.AllowedMentions.none(),
-            slash_command_guilds=[881812541012058132],
+            # slash_command_guilds=[881812541012058132],
             slash_commands=True,
+            message_commands=False,
         )
 
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
@@ -121,7 +124,13 @@ class Bot(commands.Bot):
                 try:
                     self.load_extension(f"cogs.{cog[:-3]}")
                 except Exception as error:
-                    print(f"Could not load [{cog}]: {error}")
+                    print(f"Could not load [{cog}]:")
+                    traceback.print_exception(
+                        etype=type(error),
+                        value=error,
+                        tb=error.__traceback__,
+                        file=sys.stderr,
+                    )
 
         if bool(self.config["SETTINGS"]["debug"]) is True:
             self.debugging()

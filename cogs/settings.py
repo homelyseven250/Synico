@@ -101,6 +101,35 @@ class Settings(commands.Cog):
             f"Events will now be logged in {channel.mention}", ephemeral=True
         )
 
+    @_settings.group()
+    @is_admin()
+    async def tickets(self, context: commands.Context):
+        pass
+
+    @tickets.command(name="category")
+    @is_admin()
+    async def tickets_category(
+        self,
+        context: commands.Context,
+        category: discord.CategoryChannel = commands.Option(
+            None, description="Category where tickets are created in."
+        ),
+    ):
+        """
+        Update which category channel tickets are created in.
+        """
+        await context.bot.pool.execute(
+            "UPDATE guilds SET ticket_category = $1 WHERE guild = $2",
+            category.id if category else 0,
+            context.guild.id,
+        )
+        await context.send(
+            f"Tickets will now be created in the {category.name}"
+            if category
+            else "Tickets will now be created in a newly made 'Tickets' category",
+            ephemeral=True,
+        )
+
 
 def setup(bot):
     bot.add_cog(Settings(bot))
