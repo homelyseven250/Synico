@@ -63,8 +63,9 @@ class Bot(commands.Bot):
             intents=intents,
             owner_ids=[220418804176388097, 672498629864325140],
             allowed_mentions=discord.AllowedMentions.none(),
-            slash_command_guilds=[881812541012058132],
+            # slash_command_guilds=[881812541012058132],
             slash_commands=True,
+            message_commands=False,
         )
 
         self._BotBase__cogs = commands.core._CaseInsensitiveDict()
