@@ -1,6 +1,8 @@
 import asyncio
 import os
+import sys
 from configparser import ConfigParser
+import traceback
 from typing import Callable, List, Optional, Union
 
 import aiohttp
@@ -120,7 +122,13 @@ class Bot(commands.Bot):
                 try:
                     self.load_extension(f"cogs.{cog[:-3]}")
                 except Exception as error:
-                    print(f"Could not load [{cog}]: {error}")
+                    print(f"Could not load [{cog}]:")
+                    traceback.print_exception(
+                        etype=type(error),
+                        value=error,
+                        tb=error.__traceback__,
+                        file=sys.stderr,
+                    )
 
         if bool(self.config["SETTINGS"]["debug"]) is True:
             self.debugging()
