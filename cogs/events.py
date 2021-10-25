@@ -220,7 +220,7 @@ class Events(commands.Cog):
                         range(0, len(after.content), splice), start=1
                     ):
                         embed: discord.Embed = self.bot.embed(
-                            description=f"{after.author.mention} edited a message in {after.channel.mention}:\
+                            description=f"{before.author.mention} edited a message in {before.channel.mention}:\
                             \n\nEdited ({index}/{int(total)}):\n{after.content[slice:slice + splice]}",
                             color=0xE67E22,
                         )
@@ -354,7 +354,7 @@ class Events(commands.Cog):
                             )
 
                             if not role.count(f"<@&{before_role}>"):
-                                if before_role == after.guild.default_role.id:
+                                if before_role == before.guild.default_role.id:
                                     if not role.count("@everyone"):
                                         role.append("@everyone")
 
@@ -424,11 +424,9 @@ class Events(commands.Cog):
         """
         An event called when a message was pinned/unpinned.
         """
-        print("called")
         log_channel = await self.log_channel(channel.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
-            print("webhook", webhook)
 
             embed: discord.Embed = self.bot.embed(
                 description=f"Pinned message(s) in the {str(channel.type).title()} channel\
@@ -511,7 +509,7 @@ class Events(commands.Cog):
         """
         An event called when a thread has been updated.
         """
-        log_channel = await self.log_channel(after.guild.id)
+        log_channel = await self.log_channel(before.guild.id)
         if log_channel:
             webhook = await self.prepare_webhook(log_channel)
 
@@ -530,18 +528,18 @@ class Events(commands.Cog):
                 description=f"{after.mention} has been updated.\n\n{changes}",
                 color=0x2ECC71,
             )
-            embed.set_author(name=f"{after.guild}", icon_url=after.guild.icon.url)
+            embed.set_author(name=f"{before.guild}", icon_url=before.guild.icon.url)
 
             if changes:
-                if self.embeds.get(after.guild.id, None):
-                    embeds: List[discord.Embed] = self.embeds[after.guild.id][
+                if self.embeds.get(before.guild.id, None):
+                    embeds: List[discord.Embed] = self.embeds[before.guild.id][
                         "embeds"
                     ].append(embed)
 
-                    self.embeds[after.guild.id].update(embed=embeds)
+                    self.embeds[before.guild.id].update(embed=embeds)
                     return
 
-                self.embeds[after.guild.id] = {"webhook": webhook, "embeds": [embed]}
+                self.embeds[before.guild.id] = {"webhook": webhook, "embeds": [embed]}
 
     # Requires member intents
     async def on_member_parsing(
@@ -951,7 +949,7 @@ class Events(commands.Cog):
                 color=0xE67E22,
             )
             embed.set_author(name=f"{after}", icon_url=after.icon.url)
-            embed.set_thumbnail(url=after.banner.url)
+            embed.set_thumbnail(url=before.banner.url)
 
             if changes:
                 if self.embeds.get(before.id, None):
@@ -1073,11 +1071,11 @@ class Events(commands.Cog):
                     changes = total
 
             embed: discord.Embed = self.bot.embed(
-                description=f"Changes were made to the role `{after.name}`\n\n{changes}",
+                description=f"Changes were made to the role `{before.name}`\n\n{changes}",
                 color=0xE67E22,
             )
-            embed.set_author(name=f"{after.guild}", icon_url=after.guild.icon.url)
-            embed.set_thumbnail(url=after.guild.banner.url)
+            embed.set_author(name=f"{before.guild}", icon_url=before.guild.icon.url)
+            embed.set_thumbnail(url=before.guild.banner.url)
 
             if changes:
                 if self.embeds.get(before.id, None):
