@@ -4,3 +4,4 @@ vnev/
 __pycache__/
 *.mp4
 screenshot.png
+*.disabled

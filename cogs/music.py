@@ -5,6 +5,7 @@ import youtube_dl
 from urllib import parse
 from pyppeteer import launch
 import asyncio
+import requests
 
 
 class Music(commands.Cog):
@@ -35,8 +36,8 @@ class Music(commands.Cog):
         page = await self.browser.newPage()
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0')
         await page.goto(f'https://music.youtube.com/search?q={song}', {'waituntil': 'networkidle0'})
-        await asyncio.sleep(0.2)
-        url = await page.querySelector('yt-formatted-string[has-link-only_]:not([force-default-style]) a.yt-simple-endpoint.yt-formatted-string')
+        # await asyncio.sleep(0.75)
+        url = await page.waitForXPath('/html/body/ytmusic-app/ytmusic-app-layout/div[3]/ytmusic-search-page/ytmusic-tabbed-search-results-renderer/div[2]/ytmusic-section-list-renderer/div[2]/ytmusic-shelf-renderer[2]/div[2]/ytmusic-responsive-list-item-renderer[1]/div[2]/div[1]/yt-formatted-string/a')
         await page.screenshot({'path': './screenshot.png', 'fullPage': True})
         url = await url.getProperty('href')
         return await url.jsonValue()
@@ -68,12 +69,13 @@ class Music(commands.Cog):
             url = await self.getURL(song)
             v = dict(parse.parse_qsl(parse.urlsplit(url).query))['v']
             result = self.ydl.extract_info(url=v, download=False)
+            # song = self.ydl.download([v])
             if context.voice_client != None and context.voice_client.is_connected():
                 vc = context.voice_client
             else:
                 vc = await context.author.voice.channel.connect()
-            vc.play(discord.FFmpegPCMAudio(result['url']))
-            await context.send(f'Playing {result["title"]}')
+                vc.play(discord.FFmpegPCMAudio(result['url']))
+            await context.send(f'Playing')
 
 def setup(bot: Bot):
     bot.add_cog(Music(bot))
