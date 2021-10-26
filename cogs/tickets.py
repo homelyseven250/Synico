@@ -126,6 +126,9 @@ class Tickets(commands.Cog):
         category_id: int = await self.bot.pool.fetchval(
             "SELECT ticket_category FROM guilds WHERE guild = $1", context.guild.id
         )
+        ticket_message: str = await self.bot.pool.fetchval(
+            "SELECT ticket_message FROM guilds WHERE guild = $1", context.guild.id
+        )
         category = context.guild.get_channel(category_id)
         role_overwrites = {
             role: discord.PermissionOverwrite(read_messages=False)
@@ -151,6 +154,13 @@ class Tickets(commands.Cog):
         }
         overwrites = {**member_overwrites, **role_overwrites, **bot_role_overwrites}
         ticket_id = await generate_uuid(context)
+
+        embed: discord.Embed = context.bot.embed(
+            description=f"Ticket created by {context.author} on {discord.utils.format_dt(discord.utils.utcnow())}\n\nClose this ticket by pressing the button below.",
+            color=0x2ECC71,
+        )
+        embed.set_footer(text=f"Ticket ID: {ticket_id}")
+
         if category:
             channel = await category.create_text_channel(
                 name=f"{context.author}"[:100],
@@ -158,11 +168,6 @@ class Tickets(commands.Cog):
                 reason=f"Ticket created by {context.author}",
             )
 
-            embed: discord.Embed = context.bot.embed(
-                description=f"Ticket created by {context.author} on {discord.utils.format_dt(discord.utils.utcnow())}\n\nClose ticket by either pressing the button below or using {context.prefix or '/'}ticket close {ticket_id}",
-                color=0x2ECC71,
-            )
-            embed.set_footer(text=f"Ticket ID: {ticket_id}")
             view = Confirm(channel.id, ticket_id)
             message = await channel.send(embed=embed, view=view)
 
@@ -176,6 +181,10 @@ class Tickets(commands.Cog):
             )
 
             await context.send(f"View ticket in {channel.mention}", ephemeral=True)
+            if ticket_message:
+                await channel.send(
+                    ticket_message, allowed_mentions=discord.AllowedMentions.all()
+                )
 
         else:
             category = await context.guild.create_category(
@@ -194,11 +203,7 @@ class Tickets(commands.Cog):
                 overwrites=overwrites,
                 reason=f"Ticket created by {context.author}",
             )
-            embed: discord.Embed = context.bot.embed(
-                description=f"Ticket created by {context.author} on {discord.utils.format_dt(discord.utils.utcnow())}\n\nClose ticket by either pressing the button below or using {context.prefix or '/'}ticket close {ticket_id}",
-                color=0x2ECC71,
-            )
-            embed.set_footer(text=f"Ticket ID: {ticket_id}")
+
             view = Confirm(channel.id, ticket_id)
             message = await channel.send(embed=embed, view=view)
 
@@ -211,6 +216,10 @@ class Tickets(commands.Cog):
                 message.id,
             )
             await context.send(f"View ticket in {channel.mention}", ephemeral=True)
+            if ticket_message:
+                await channel.send(
+                    ticket_message, allowed_mentions=discord.AllowedMentions.all()
+                )
 
     @ticket.command(name="close")
     @is_mod()
