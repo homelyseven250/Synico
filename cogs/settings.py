@@ -50,7 +50,7 @@ class Settings(commands.Cog):
         Update the guild's mod role.
         """
         await context.bot.pool.execute(
-            "UPDATE guilds SET mod = $1 WHERE guild = $2", role.id, context.guild.id
+            "UPDATE guilds SET mods = $1 WHERE guild = $2", role.id, context.guild.id
         )
         await context.send(
             f"{role.mention} has been set as the mod role and will be able to use most moderation commands.",
