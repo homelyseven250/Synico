@@ -1,9 +1,5 @@
-asyncpg==0.24.0
-beautifulsoup4==4.9.3
-black==21.8b0
-git+https://github.com/Rapptz/discord-ext-menus
+asyncpg
+black
 git+https://github.com/iDevision/enhanced-discord.py
-jishaku==2.2.0
-PyNaCl==1.4.0
-pyppeteer==0.2.6
-sphobjinv==2.1
+git+https://github.com/Rapptz/discord-ext-menus
+jishaku
