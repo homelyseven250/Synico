@@ -140,6 +140,9 @@ class Settings(commands.Cog):
             description="Message to send when a ticket is created. 2000 character limit.",
         ),
     ):
+        """
+        Decide if/what message is sent on ticket creation.
+        """
         message = message[:2000]
         await context.bot.pool.execute(
             "UPDATE guilds SET ticket_message = $1 WHERE guild = $2",
