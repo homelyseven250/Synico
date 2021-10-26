@@ -1,25 +1,4 @@
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
-
-CREATE SCHEMA public;
-
-COMMENT ON SCHEMA public IS 'standard public schema';
-
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
-CREATE TABLE public.guilds (
+CREATE TABLE IF NOT EXISTS guilds (
     guild bigint NOT NULL,
     prefix text,
     logs bigint,
@@ -35,7 +14,7 @@ CREATE TABLE public.guilds (
     tweet text
 );
 
-CREATE TABLE public.mutes (
+CREATE TABLE IF NOT EXISTS mutes (
     guild bigint,
     muted bigint,
     ends timestamp with time zone,
@@ -44,7 +23,7 @@ CREATE TABLE public.mutes (
 );
 
 
-CREATE TABLE public.tags (
+CREATE TABLE IF NOT EXISTS tags (
     guild bigint,
     creator bigint,
     created timestamp with time zone,
@@ -53,11 +32,20 @@ CREATE TABLE public.tags (
     tag text
 );
 
-CREATE TABLE public.warns (
+CREATE TABLE IF NOT EXISTS warns (
     guild bigint,
     warned bigint,
     author bigint,
     warn text,
     warned bigint,
     created timestamp with time zone
+);
+
+CREATE TABLE IF NOT EXISTS tickets
+(
+    guild bigint,
+    ticket_id bigint,
+    ticket_author bigint,
+    ticket_channel bigint,
+    message_id bigint
 );
