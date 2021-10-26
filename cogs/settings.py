@@ -50,7 +50,7 @@ class Settings(commands.Cog):
         Update the guild's mod role.
         """
         await context.bot.pool.execute(
-            "UPDATE guilds SET mod = $1 WHERE guild = $2", role.id, context.guild.id
+            "UPDATE guilds SET mods = $1 WHERE guild = $2", role.id, context.guild.id
         )
         await context.send(
             f"{role.mention} has been set as the mod role and will be able to use most moderation commands.",
@@ -127,6 +127,32 @@ class Settings(commands.Cog):
             f"Tickets will now be created in the {category.name}"
             if category
             else "Tickets will now be created in a newly made 'Tickets' category",
+            ephemeral=True,
+        )
+
+    @tickets.command(name="message")
+    @is_admin()
+    async def tickets_message(
+        self,
+        context: commands.Context,
+        message: str = commands.Option(
+            None,
+            description="Message to send when a ticket is created. 2000 character limit.",
+        ),
+    ):
+        """
+        Decide if/what message is sent on ticket creation.
+        """
+        message = message[:2000]
+        await context.bot.pool.execute(
+            "UPDATE guilds SET ticket_message = $1 WHERE guild = $2",
+            message,
+            context.guild.id,
+        )
+        await context.send(
+            f"Message sent on ticket creation has been set to\n\n{message}"
+            if message
+            else "No message will be sent on ticket creation.",
             ephemeral=True,
         )
 

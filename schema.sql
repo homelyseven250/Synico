@@ -5,13 +5,12 @@ CREATE TABLE IF NOT EXISTS guilds (
     timezone text,
     mute bigint,
     admins bigint,
-    mod bigint,
+    mods bigint,
     joins bigint,
     leave bigint,
     welcome text,
     goodbye text,
-    twitter bigint,
-    tweet text
+    ticket_message text
 );
 
 CREATE TABLE IF NOT EXISTS mutes (
@@ -22,13 +21,12 @@ CREATE TABLE IF NOT EXISTS mutes (
     reason text
 );
 
-
 CREATE TABLE IF NOT EXISTS tags (
     guild bigint,
     creator bigint,
     created timestamp with time zone,
     used bigint,
-    content text,
+    tag_content text,
     tag text
 );
 
@@ -36,9 +34,10 @@ CREATE TABLE IF NOT EXISTS warns (
     guild bigint,
     warned bigint,
     author bigint,
-    warn text,
-    warned bigint,
-    created timestamp with time zone
+    warn text
+    warning_num bigint,
+    created timestamp with time zone,
+    warning_id bigint
 );
 
 CREATE TABLE IF NOT EXISTS tickets
