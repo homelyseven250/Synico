@@ -130,6 +130,29 @@ class Settings(commands.Cog):
             ephemeral=True,
         )
 
+    @tickets.command(name="message")
+    @is_admin()
+    async def tickets_message(
+        self,
+        context: commands.Context,
+        message: str = commands.Option(
+            None,
+            description="Message to send when a ticket is created. 2000 character limit.",
+        ),
+    ):
+        message = message[:2000]
+        await context.bot.pool.execute(
+            "UPDATE guilds SET ticket_message = $1 WHERE guild = $2",
+            message,
+            context.guild.id,
+        )
+        await context.send(
+            f"Message sent on ticket creation has been set to\n\n{message}"
+            if message
+            else "No message will be sent on ticket creation.",
+            ephemeral=True,
+        )
+
 
 def setup(bot):
     bot.add_cog(Settings(bot))

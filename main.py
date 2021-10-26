@@ -294,7 +294,7 @@ class Bot(commands.Bot):
         self.admins: dict[int, dict[str, int]] = {
             guild: {"admin": admin, "mod": mod}
             for guild, admin, mod in await self.pool.fetch(
-                "SELECT guild, admins, mod FROM guilds"
+                "SELECT guild, admins, mods FROM guilds"
             )
         }
 

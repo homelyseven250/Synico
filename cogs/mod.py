@@ -452,7 +452,7 @@ class Moderation(commands.Cog):
         warning_id = await generate_uuid(context)
         warning: int = (
             await context.bot.pool.fetchval(
-                "SELECT warning FROM warns WHERE guild = $1 AND warned = $2 ORDER BY warned DESC;",
+                "SELECT warning_num FROM warns WHERE guild = $1 AND warned = $2 ORDER BY warned DESC;",
                 context.guild.id,
                 member.id,
             )

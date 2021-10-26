@@ -190,7 +190,7 @@ class Info(commands.Cog):
         """
         tag = tag.lower()
         _tag: Optional[str] = await context.bot.pool.fetchval(
-            "SELECT content FROM tags WHERE guild = $1 AND tag_lower = $2",
+            "SELECT tag_content FROM tags WHERE guild = $1 AND tag_lower = $2",
             context.guild.id,
             tag,
         )
@@ -286,7 +286,7 @@ class Info(commands.Cog):
             name = _tag["tag"]
             uses = _tag["used"]
             date = _tag["created"]
-            contents = _tag["content"]
+            contents = _tag["tag_content"]
 
             tag_owner: Union[discord.Member, str] = (
                 self.bot.cache["member"].get(user)
@@ -368,7 +368,7 @@ class Info(commands.Cog):
             permission_check = tag_perms(context, _tag["creator"])
             if permission_check:
                 await context.bot.pool.execute(
-                    "UPDATE tags SET content = $1 WHERE guild = $2 AND tag_lower = $3",
+                    "UPDATE tags SET tag_content = $1 WHERE guild = $2 AND tag_lower = $3",
                     content,
                     context.guild.id,
                     tag,
