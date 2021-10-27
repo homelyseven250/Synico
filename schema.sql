@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS guilds (
     leave bigint,
     welcome text,
     goodbye text,
-    ticket_message text
+    ticket_message text,
+    CONSTRAINT guilds_pkey PRIMARY KEY (guild)
 );
 
 CREATE TABLE IF NOT EXISTS mutes (
@@ -53,4 +54,10 @@ CREATE TABLE IF NOT EXISTS twitch (
     streamer text,
     live_message text,
     notified boolean
+);
+
+CREATE TABLE IF NOT EXISTS lastfm (
+    user_id bigint NOT NULL,
+    lastfm_user text,
+    CONSTRAINT lastfm_pkey PRIMARY KEY (user_id)
 );
