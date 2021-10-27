@@ -40,8 +40,7 @@ CREATE TABLE IF NOT EXISTS warns (
     warning_id bigint
 );
 
-CREATE TABLE IF NOT EXISTS tickets
-(
+CREATE TABLE IF NOT EXISTS tickets (
     guild bigint,
     ticket_id bigint,
     ticket_author bigint,
@@ -49,10 +48,9 @@ CREATE TABLE IF NOT EXISTS tickets
     message_id bigint
 );
 
-CREATE TABLE IF NOT EXISTS twitch
-(
+CREATE TABLE IF NOT EXISTS twitch (
     guild_id bigint,
     streamer text,
     live_message text,
     notified boolean
-)
+);
