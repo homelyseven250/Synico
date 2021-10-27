@@ -17,6 +17,19 @@ class Info(commands.Cog):
     def __init__(self, bot: Bot) -> None:
         self.bot = bot
 
+        self.bot.loop.create_task(self.__ainit__())
+
+    async def __ainit__(self):
+        await self.bot.wait_until_ready()
+
+        self.lastfm_key = api_key = self.bot.config["LASTFM"]["api_key"]
+        self.lastfm_users = {
+            user: username
+            for user, username in await self.bot.pool.fetch(
+                "SELECT user_id, lastfm_user FROM lastfm"
+            )
+        }
+
     @commands.group(name="profile")
     async def user_info(self, context: commands.Context) -> None:
         pass
@@ -119,6 +132,149 @@ class Info(commands.Cog):
         embed.add_field(name="Role(s)", value=roles[:1008] or "@everyone")
         embed.set_author(name=str(member), icon_url=member.display_avatar.url)
         embed.set_thumbnail(url=member.display_avatar.url)
+
+        await context.send(embed=embed)
+
+    @commands.group(name="lastfm")
+    async def _lastfm(self, context: commands.Context):
+        pass
+
+    @_lastfm.command(name="link")
+    async def lastfm_link(
+        self,
+        context: commands.Context,
+        username: str = commands.Option(description="Username of last.fm account."),
+    ):
+        """
+        Link your last.fm account.
+        """
+
+        user_info_url = "http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user={user}&api_key={key}&format=json".format(
+            user=username, key=self.lastfm_key
+        )
+        async with context.bot.cs.get(user_info_url) as r:
+            data = await r.json()
+
+        if not data.get("user"):
+            await context.send(
+                f"Could not locate your last.fm account.", ephemeral=True
+            )
+            return
+
+        _username = data["user"]["name"]
+
+        exists = self.lastfm_users.get(context.author.id)
+        if not exists:
+            await context.bot.pool.execute(
+                "INSERT INTO lastfm VALUES ($1, $2)",
+                context.author.id,
+                username,
+            )
+
+        else:
+            await context.bot.pool.execute(
+                "UPDATE lastfm SET lastfm_user = $1 WHERE user_id = $2",
+                username,
+                context.author.id,
+            )
+
+        self.lastfm_users.update({context.author.id: _username})
+        await context.send(
+            f"Successfully linked {context.author} to https://last.fm/user/{_username}",
+            ephemeral=True,
+        )
+
+    @_lastfm.command(name="fm")
+    async def lastfm_fm(
+        self,
+        context: commands.Context,
+        member: discord.Member = commands.Option(
+            None, description="Member to view recent last.fm activity."
+        ),
+    ):
+        """
+        View recent last.fm listening activity.
+        """
+        member = member or context.author
+        if not self.lastfm_users.get(member.id):
+            await context.send(
+                f"{member} is not linked to a last.fm account.",
+                ephemeral=True,
+            )
+            return
+
+        user = self.lastfm_users.get(member.id)
+
+        user_info_url = "http://ws.audioscrobbler.com/2.0/?method=user.getinfo&user={user}&api_key={key}&format=json".format(
+            user=user, key=self.lastfm_key
+        )
+        recent_track_url = "http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user={user}&api_key={key}&limit=1&format=json"
+        user_track_url = "http://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key={key}&artist={artist}&track={track}&username={username}&format=json"
+
+        async with context.bot.cs.get(user_info_url) as r:
+            data = await r.json()
+
+        if not data.get("user"):
+            await context.send(
+                f"Could not locate your last.fm account.", ephemeral=True
+            )
+            return
+
+        username = data["user"]["name"]
+        avatar_url = data["user"]["image"][-1]["#text"]
+        profile_url = data["user"]["url"]
+
+        async with context.bot.cs.get(
+            recent_track_url.format(user=username, key=self.lastfm_key)
+        ) as r:
+            data = await r.json()
+
+        if not len(data["recenttracks"]["track"]) >= 1:
+            await context.send(
+                "You do not have any recent listening activity.", ephemeral=True
+            )
+            return
+
+        recent = data["recenttracks"]["track"][0]
+        track_name = recent["name"]
+        track_url = recent["url"]
+        track_cover = recent["image"][-1]["#text"]
+        artist_name = recent["artist"]["#text"]
+
+        async with context.bot.cs.get(
+            user_track_url.format(
+                key=self.lastfm_key,
+                artist=artist_name,
+                track=track_name,
+                username=username,
+            )
+        ) as r:
+            data = await r.json()
+
+        artist_url = data["track"]["artist"]["url"]
+
+        album_name = data["track"]["album"]["title"]
+        album_url = data["track"]["album"]["url"]
+        album_image = data["track"]["album"]["image"][-1]["#text"]
+
+        total_plays = data["track"]["playcount"]
+        user_plays = data["track"]["userplaycount"]
+
+        embed: discord.Embed = context.bot.embed(color=0x2ECC71)
+
+        embed.add_field(
+            name="Track/Album",
+            value=f"[{track_name}]({track_url}) - [{album_name}]({album_url})",
+            inline=False,
+        )
+        embed.add_field(name="Artist", value=f"[{artist_name}]({artist_url})")
+
+        embed.set_author(name=username, url=profile_url, icon_url=avatar_url)
+        embed.set_thumbnail(url=track_cover)
+        embed.set_footer(
+            text=f"{username}'s Plays: {user_plays} | Total Plays: {total_plays}",
+            icon_url=album_image,
+        )
 
         await context.send(embed=embed)
 
