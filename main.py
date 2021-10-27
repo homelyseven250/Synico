@@ -64,7 +64,7 @@ class Bot(commands.Bot):
             intents=intents,
             owner_ids=[220418804176388097, 672498629864325140],
             allowed_mentions=discord.AllowedMentions.none(),
-            # slash_command_guilds=[881812541012058132],
+            # slash_command_guilds=[881812541012058132, 774524414871863316],
             slash_commands=True,
             message_commands=False,
         )
@@ -131,23 +131,6 @@ class Bot(commands.Bot):
                         tb=error.__traceback__,
                         file=sys.stderr,
                     )
-
-        if bool(self.config["SETTINGS"]["debug"]) is True:
-            self.debugging()
-
-    def debugging(self) -> None:
-        """
-        A function to optionally load
-        the Jishaku extension for debugging purposes.
-        """
-        self.load_extension("jishaku")
-
-        os.environ["JISHAKU_NO_UNDERSCORE"] = "True"
-        os.environ["JISHAKU_NO_DM_TRACEBACK"] = "True"
-        os.environ["JISHAKU_HIDE"] = "True"
-
-        jishaku = self.get_command("jsk")
-        jishaku.hidden = True
 
     async def assign_attributes(self) -> None:
         """

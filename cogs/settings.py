@@ -103,6 +103,33 @@ class Settings(commands.Cog):
 
     @_settings.group()
     @is_admin()
+    async def twitch(self, context: commands.Context):
+        pass
+
+    @twitch.command(name="channel")
+    @is_admin()
+    async def twitch_channel(
+        self,
+        context: commands.Context,
+        channel: discord.TextChannel = commands.Option(
+            description="Channel to send Twitch live notifications."
+        ),
+    ):
+        """
+        Set channel where Twitch now live notifications are sent to.
+        """
+        await context.bot.pool.execute(
+            "UPDATE guilds SET twitch_channel = $1 WHERE guild = $2",
+            channel.id,
+            context.guild.id,
+        )
+        await context.send(
+            f"Twitch live notifications will now be sent to {channel.mention}",
+            ephemeral=True,
+        )
+
+    @_settings.group()
+    @is_admin()
     async def tickets(self, context: commands.Context):
         pass
 

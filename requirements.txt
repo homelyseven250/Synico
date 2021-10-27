@@ -1,5 +1,4 @@
 asyncpg
-black
 git+https://github.com/iDevision/enhanced-discord.py
 git+https://github.com/Rapptz/discord-ext-menus
-jishaku
+pytz
