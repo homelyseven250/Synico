@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS warns (
     guild bigint,
     warned bigint,
     author bigint,
-    warn text
+    warn text,
     warning_num bigint,
     created timestamp with time zone,
     warning_id bigint
@@ -48,3 +48,11 @@ CREATE TABLE IF NOT EXISTS tickets
     ticket_channel bigint,
     message_id bigint
 );
+
+CREATE TABLE IF NOT EXISTS twitch
+(
+    guild_id bigint,
+    streamer text,
+    live_message text,
+    notified boolean
+)
