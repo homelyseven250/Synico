@@ -3,7 +3,6 @@ from discord.ext import commands, tasks
 from main import Bot
 import youtube_dl
 from urllib import parse
-from pyppeteer import launch
 
 
 class Music(commands.Cog):
@@ -13,16 +12,6 @@ class Music(commands.Cog):
         self.bot = bot
         self.queues = {}
         self.currentPlaying = {}
-        self.bot.loop.create_task(self.__ainit__())
-
-    async def __ainit__(self) -> None:
-        """
-        |coro|
-
-        An asynchronous version of :method:`__init__`
-        to access coroutines.
-        """
-        self.browser = await launch()
 
     async def getURL(self, song: str):
         # Search for the song in the database
@@ -33,24 +22,15 @@ class Music(commands.Cog):
         )
         if possibleSong != None:
             return possibleSong
-        page = await self.browser.newPage()
-        await page.setUserAgent(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0/2mpCQgow-36"
-        )
-        await page.goto(
-            f"https://music.youtube.com/search?q={song}",
-            {"waituntil": "domcontentloaded"},
-        )
-        url = await page.waitForXPath(
-            "/html/body/ytmusic-app/ytmusic-app-layout/div[3]/ytmusic-search-page/ytmusic-tabbed-search-results-renderer/div[2]/ytmusic-section-list-renderer/div[2]/ytmusic-shelf-renderer[1]/div[2]/ytmusic-responsive-list-item-renderer/div[2]/div[1]/yt-formatted-string/a"
-        )
-        url = await url.getProperty("href")
-        await self.bot.pool.execute(
-            "INSERT INTO music (search, video_id) VALUES ($1, $2) ON CONFLICT (search) DO NOTHING",
-            song.lower().strip(),
-            await url.jsonValue(),
-        )
-        return await url.jsonValue()
+        url = self.ydl.extract_info(f'ytsearch: {song} song official', download=False)
+        # Add the song to the database
+        if url != None:
+            await self.bot.pool.execute(
+                "INSERT INTO music (search, video_id) VALUES ($1, $2)",
+                song.lower().strip(),
+                url["entries"][0]["id"],
+            )
+            return url["entries"][0]["id"]
 
     async def playnext(self, context: commands.Context):
         if context.guild.id in self.queues and len(self.queues[context.guild.id]) > 0:
@@ -151,8 +131,7 @@ class Music(commands.Cog):
         if not context.guild.id in self.queues:
             self.queues[context.guild.id] = []
         url = await self.getURL(song)
-        v = dict(parse.parse_qsl(parse.urlsplit(url).query))["v"]
-        result = self.ydl.extract_info(url=v, download=False)
+        result = self.ydl.extract_info(url=url, download=False)
         self.queues[context.guild.id].append(result)
         await context.send(
             f"Added {song} to the queue for {context.guild}", ephemeral=True
