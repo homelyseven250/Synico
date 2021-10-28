@@ -12,7 +12,7 @@ class Games(commands.Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
-    @commands.group(name="play")
+    @commands.group(name="playgame")
     async def _play(self, context: commands.Context):
         pass
 
