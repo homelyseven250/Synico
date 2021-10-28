@@ -220,9 +220,9 @@ class Info(commands.Cog):
             )
             return
 
-        username = data["user"]["name"]
-        avatar_url = data["user"]["image"][-1]["#text"]
-        profile_url = data["user"]["url"]
+        username: str = data["user"]["name"]
+        avatar_url: str = data["user"]["image"][-1]["#text"]
+        profile_url: str = data["user"]["url"]
 
         async with context.bot.cs.get(
             recent_track_url.format(user=username, key=self.lastfm_key)
@@ -235,13 +235,13 @@ class Info(commands.Cog):
             )
             return
 
-        recent = data["recenttracks"]["track"][0]
+        recent: dict = data["recenttracks"]["track"][0]
         track_name: str = recent["name"]
-        track_url = recent["url"]
-        track_cover = recent["image"][-1]["#text"]
-        artist_name = recent["artist"]["#text"]
+        track_url: str = recent["url"]
+        track_cover: str = recent["image"][-1]["#text"]
+        artist_name: str = recent["artist"]["#text"]
 
-        album_name = recent["album"]["#text"]
+        album_name: str = recent["album"]["#text"]
 
         async with context.bot.cs.get(
             user_track_url.format(
@@ -255,11 +255,13 @@ class Info(commands.Cog):
 
         embed: discord.Embed = context.bot.embed(color=0x2ECC71)
 
-        total_plays = data["track"]["playcount"] if data.get("track") else 0
-        user_plays = data["track"]["userplaycount"] if data.get("track") else 0
+        total_plays: int = data["track"]["playcount"] if data.get("track") else 0
+        user_plays: int = data["track"]["userplaycount"] if data.get("track") else 0
 
-        album_url = data["track"]["album"]["url"] if data.get("track") else None
-        album_image = (
+        album_url: Optional[str] = (
+            data["track"]["album"]["url"] if data.get("track") else None
+        )
+        album_image: Optional[str] = (
             data["track"]["album"]["image"][-1]["#text"] if data.get("track") else None
         )
 
