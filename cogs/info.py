@@ -184,8 +184,8 @@ class Info(commands.Cog):
             ephemeral=True,
         )
 
-    @_lastfm.command(name="fm")
-    async def lastfm_fm(
+    @commands.command(name="fm")
+    async def _fm(
         self,
         context: commands.Context,
         member: discord.Member = commands.Option(
@@ -259,7 +259,7 @@ class Info(commands.Cog):
         user_plays: int = data["track"]["userplaycount"] if data.get("track") else 0
 
         album_url: Optional[str] = (
-            data["track"]["album"]["url"] if data.get("track") else None
+            None if not data.get("track") else data["track"]["album"]["url"]
         )
         album_image: Optional[str] = (
             data["track"]["album"]["image"][-1]["#text"] if data.get("track") else None
