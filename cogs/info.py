@@ -198,7 +198,7 @@ class Info(commands.Cog):
         member = member or context.author
         if not self.lastfm_users.get(member.id):
             await context.send(
-                f"{member} is not linked to a last.fm account.",
+                f"{member} is not linked to a last.fm account. Use /lastfm link",
                 ephemeral=True,
             )
             return
@@ -220,9 +220,9 @@ class Info(commands.Cog):
             )
             return
 
-        username = data["user"]["name"]
-        avatar_url = data["user"]["image"][-1]["#text"]
-        profile_url = data["user"]["url"]
+        username: str = data["user"]["name"]
+        avatar_url: str = data["user"]["image"][-1]["#text"]
+        profile_url: str = data["user"]["url"]
 
         async with context.bot.cs.get(
             recent_track_url.format(user=username, key=self.lastfm_key)
@@ -235,45 +235,55 @@ class Info(commands.Cog):
             )
             return
 
-        recent = data["recenttracks"]["track"][0]
-        track_name = recent["name"]
-        track_url = recent["url"]
-        track_cover = recent["image"][-1]["#text"]
-        artist_name = recent["artist"]["#text"]
+        recent: dict = data["recenttracks"]["track"][0]
+        track_name: str = recent["name"]
+        track_url: str = recent["url"]
+        track_cover: str = recent["image"][-1]["#text"]
+        artist_name: str = recent["artist"]["#text"]
+
+        album_name: str = recent["album"]["#text"]
 
         async with context.bot.cs.get(
             user_track_url.format(
                 key=self.lastfm_key,
                 artist=artist_name,
-                track=track_name,
+                track=track_name.replace(" ", "+"),
                 username=username,
-            )
+            ).replace(" ", "+")
         ) as r:
             data = await r.json()
 
-        artist_url = data["track"]["artist"]["url"]
-
-        album_name = data["track"]["album"]["title"]
-        album_url = data["track"]["album"]["url"]
-        album_image = data["track"]["album"]["image"][-1]["#text"]
-
-        total_plays = data["track"]["playcount"]
-        user_plays = data["track"]["userplaycount"]
-
         embed: discord.Embed = context.bot.embed(color=0x2ECC71)
+
+        total_plays: int = data["track"]["playcount"] if data.get("track") else 0
+        user_plays: int = data["track"]["userplaycount"] if data.get("track") else 0
+
+        album_url: Optional[str] = (
+            data["track"]["album"]["url"] if data.get("track") else None
+        )
+        album_image: Optional[str] = (
+            data["track"]["album"]["image"][-1]["#text"] if data.get("track") else None
+        )
+
+        album_hyperlink = (
+            album_name if not album_url else f"[{album_name}]({album_url})"
+        )
 
         embed.add_field(
             name="Track/Album",
-            value=f"[{track_name}]({track_url}) - [{album_name}]({album_url})",
+            value=f"[{track_name}]({track_url}) - {album_hyperlink}",
             inline=False,
         )
-        embed.add_field(name="Artist", value=f"[{artist_name}]({artist_url})")
+        embed.add_field(
+            name="Artist",
+            value=f"[{artist_name}](https://www.last.fm/music/{artist_name.replace(' ', '+')})",
+        )
 
         embed.set_author(name=username, url=profile_url, icon_url=avatar_url)
         embed.set_thumbnail(url=track_cover)
         embed.set_footer(
             text=f"{username}'s Plays: {user_plays} | Total Plays: {total_plays}",
-            icon_url=album_image,
+            icon_url=album_image or track_cover,
         )
 
         await context.send(embed=embed)
