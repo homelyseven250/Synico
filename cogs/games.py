@@ -3,7 +3,6 @@ from typing import List, Optional, Union
 import discord
 import random
 
-from discord import interactions
 from main import Bot
 from discord.ext import commands
 
@@ -12,11 +11,11 @@ class Games(commands.Cog):
     def __init__(self, bot: Bot):
         self.bot = bot
 
-    @commands.group(name="playgame")
-    async def _play(self, context: commands.Context):
+    @commands.group(name="game")
+    async def _game(self, context: commands.Context):
         pass
 
-    @_play.command()
+    @_game.command()
     async def rps(
         self,
         context: commands.Context,
@@ -154,7 +153,7 @@ class Games(commands.Cog):
         embed.remove_footer()
         await message.edit(embed=embed, view=None)
 
-    @_play.command()
+    @_game.command()
     async def slots(self, context: commands.Context):
         """
         Play a game of Slots.

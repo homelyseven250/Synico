@@ -134,23 +134,6 @@ class Bot(commands.Bot):
                         file=sys.stderr,
                     )
 
-        if bool(self.config["SETTINGS"]["debug"]) is True:
-            self.debugging()
-
-    def debugging(self) -> None:
-        """
-        A function to optionally load
-        the Jishaku extension for debugging purposes.
-        """
-        self.load_extension("jishaku")
-
-        os.environ["JISHAKU_NO_UNDERSCORE"] = "True"
-        os.environ["JISHAKU_NO_DM_TRACEBACK"] = "True"
-        os.environ["JISHAKU_HIDE"] = "True"
-
-        jishaku = self.get_command("jsk")
-        jishaku.hidden = True
-
     async def assign_attributes(self) -> None:
         """
         |coro|

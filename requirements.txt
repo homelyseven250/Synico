@@ -1,7 +1,7 @@
 asyncpg
-black
 git+https://github.com/iDevision/enhanced-discord.py
 python-socketio[client]==5.4.0
 youtube-dl==2021.6.6
 git+https://github.com/Rapptz/discord-ext-menus
 jishaku
+pytz
