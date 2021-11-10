@@ -7,6 +7,7 @@ import traceback
 from typing import Callable, List, Optional, Union
 
 import aiohttp
+import requests
 import discord
 from discord.ext import commands
 
@@ -58,6 +59,7 @@ class Bot(commands.Bot):
             voice_states=True,
             guild_messages=True,
             guild_reactions=True,
+            members=True
         )
 
         super().__init__(
@@ -241,6 +243,8 @@ class Bot(commands.Bot):
             )
             if isinstance(user, discord.User):
                 self.cache["user"].update({user.id: user})
+        
+
 
     async def add_prefix(self, guild_id: int) -> str:
         """
@@ -283,6 +287,7 @@ class Bot(commands.Bot):
                 "SELECT guild, admins, mods FROM guilds"
             )
         }
+
 
 
 if __name__ == "__main__":

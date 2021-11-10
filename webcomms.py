@@ -3,8 +3,10 @@ import asyncio
 from configparser import ConfigParser
 from postgre import Database
 from threading import Thread
-from discord import TextChannel, Embed, Color
+from discord import TextChannel, Embed, Color, Guild, Role
+from discord.ext.commands import Command
 from main import Bot
+import requests, json
 
 config = ConfigParser()
 config.read("config.ini")
@@ -188,6 +190,24 @@ class Comms:
             elif "message-author" in data:
                 embed.set_author(name=data["message-author"])
             asyncio.run_coroutine_threadsafe(channel.send(embed=embed), bot.loop)
+        
+        # @sio.on("changeCommandPerms")
+        # async def changeCommandPerms(data):
+        #     session = requests.Session()
+        #     session.headers = {"Authorization": f'Bot {config["SECRET"]["token"]}'}
+        #     commands = session.get(f'https://discord.com/api/v8/applications/{config["SECRET"]["id"]}/guilds/888111337333456916/commands')
+        #     for command in commands.json():
+        #         if command["name"] == "ban":
+        #             commandID = command["id"]
+        #             break
+            
+            
+        #     url = f'https://discord.com/api/v8/applications/{config["SECRET"]["id"]}/guilds/888111337333456916/commands/{commandID}/permissions'
+        #     json = {
+        #         "permissions": [{"id": 903454770948349962, "type": 1, "permission": True}]
+        #     }
+        #     request = session.put(url, json=json)
+        #     print(request.json())
 
         async def connect():
             print("running connecting method")
